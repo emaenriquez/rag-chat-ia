@@ -15,4 +15,6 @@ export const env = {
     jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES || '15m',
     jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || '30d',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+    uploadDir: process.env.UPLOAD_DIR || 'storage/documents',
+    maxFileSizeMb: Number(process.env.MAX_FILE_SIZE_MB) || 20,
 };

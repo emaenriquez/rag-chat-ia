@@ -32,3 +32,5 @@ node_modules/
 
 skills-lock.json
 
+storage/documents/*
+!storage/documents/.gitkeep
