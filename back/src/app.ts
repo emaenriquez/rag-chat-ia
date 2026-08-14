@@ -1,6 +1,6 @@
 import express from "express";
 import cors from 'cors'
-import helmet from 'cookie-parser'
+import helmet from 'helmet'
 import cookieParser from "cookie-parser";
 import { env } from './config/env.js'
 import router from './routes/index.js'
