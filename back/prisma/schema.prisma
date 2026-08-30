@@ -1,9 +1,11 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [vector]
 }
 
 model User {
@@ -51,6 +53,7 @@ model DocumentChunk {
   chunkIndex Int      @map("chunk_index")
   content    String
   tokens     Int      @default(0)
+  embedding  Unsupported("vector(768)")?
   createdAt  DateTime @default(now()) @map("created_at")
   document         Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
   sourceReferences SourceReference[]

@@ -17,4 +17,5 @@ export const env = {
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5500',
     uploadDir: process.env.UPLOAD_DIR || 'storage/documents',
     maxFileSizeMb: Number(process.env.MAX_FILE_SIZE_MB) || 20,
+    geminiApiKey: required('GEMINI_API_KEY')
 };

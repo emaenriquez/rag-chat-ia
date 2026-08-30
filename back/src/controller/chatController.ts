@@ -114,11 +114,31 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
         }
     })
 
-    // 3. Generar respuesta "mock" (simulada) del asistente
-    // En la Fase 4, aquí se llamará al pipeline RAG real.
-    const assistantContent = `[Mock] Esta es una respuesta simulada para tu mensaje: "${content}". En la fase 4 implementaremos el pipeline RAG real aquí.`
+    // 3. Obtener el embedding del mensaje del usuario
+    const { geminiService } = await import('../services/gemini.service.js')
+    const { ragService } = await import('../services/rag.service.js')
 
-    // 4. Guardar la respuesta del asistente
+    let assistantContent = ''
+    let similarChunks = []
+
+    try {
+        const queryEmbedding = await geminiService.getEmbedding(content)
+
+        // 4. Buscar fragmentos relevantes en la base de datos (Top 5)
+        similarChunks = await ragService.searchSimilarChunks(queryEmbedding, 5)
+
+        // Construir el contexto uniendo los fragmentos
+        const contextText = similarChunks.map(c => c.content).join('\n\n---\n\n')
+
+        // 5. Generar la respuesta usando Gemini
+        assistantContent = await geminiService.generateChatResponse(content, contextText)
+
+    } catch (error: any) {
+        console.error('Error in RAG pipeline:', error)
+        assistantContent = 'Lo siento, ocurrió un error al procesar tu mensaje. Por favor intenta nuevamente.'
+    }
+
+    // 6. Guardar la respuesta del asistente
     const assistantMessage = await prisma.message.create({
         data: {
             chatId: id,
@@ -127,7 +147,20 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
         }
     })
 
-    // 5. Actualizar el updatedAt del chat
+    // 7. Guardar referencias (SourceReferences) si hubo contexto encontrado
+    if (similarChunks.length > 0) {
+        const sourcesData = similarChunks.map(chunk => ({
+            messageId: assistantMessage.id,
+            chunkId: chunk.id,
+            similarityScore: chunk.similarity
+        }))
+
+        await prisma.sourceReference.createMany({
+            data: sourcesData
+        })
+    }
+
+    // 8. Actualizar el updatedAt del chat
     await prisma.chat.update({
         where: { id },
         data: { updatedAt: new Date() }

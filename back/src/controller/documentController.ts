@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import fs from 'fs/promises'
 import path from 'path'
 import { prisma } from '../config/database.js'
+import { ragService } from '../services/rag.service.js'
 
 // ─────────────────────────────────────────────
 // POST /api/v1/documents
@@ -62,9 +63,12 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
         },
     })
 
+    // Iniciar procesamiento RAG en segundo plano sin bloquear la respuesta
+    ragService.processDocument(document.id).catch(console.error);
+
     res.status(201).json({
         success: true,
-        message: 'Documento subido correctamente',
+        message: 'Documento subido correctamente. Procesando en segundo plano...',
         document: {
             ...document,
             fileSize: document.fileSize?.toString(), // BigInt → string para JSON
@@ -205,12 +209,14 @@ export const reprocessDocument = async (req: Request, res: Response): Promise<vo
         return
     }
 
-    // Actualizar estado a 'uploaded' para que el pipeline lo tome
-    // (en la Fase RAG se implementará el pipeline real)
+    // Actualizar estado a 'processing' para que el pipeline lo tome
     await prisma.document.update({
         where: { id },
-        data: { status: 'uploaded' },
+        data: { status: 'processing' },
     })
+
+    // Iniciar procesamiento
+    ragService.processDocument(id).catch(console.error);
 
     res.json({
         success: true,
