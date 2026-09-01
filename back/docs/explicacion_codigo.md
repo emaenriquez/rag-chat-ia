@@ -1,43 +1,59 @@
 # 📖 Explicación Detallada del Código — RAG Backend
 
-## Índice
+## 📑 Índice
 
 1. [Visión General del Proyecto](#visión-general-del-proyecto)
-2. [Estructura de Carpetas](#estructura-de-carpetas)
-3. [Flujo General de la Aplicación](#flujo-general-de-la-aplicación)
-4. [Archivos de Configuración Raíz](#archivos-de-configuración-raíz)
-5. [Capa de Configuración (`src/config/`)](#capa-de-configuración)
-6. [Capa de Modelos / Schemas (`src/models/`)](#capa-de-modelos--schemas)
-7. [Capa de Middleware (`src/middleware/`)](#capa-de-middleware)
-8. [Capa de Controladores (`src/controller/`)](#capa-de-controladores)
-9. [Capa de Rutas (`src/routes/`)](#capa-de-rutas)
-10. [Punto de Entrada de la App (`src/app.ts`)](#punto-de-entrada-de-la-app)
-11. [Servidor (`src/server.ts`)](#servidor)
-12. [Esquema de Base de Datos (`prisma/schema.prisma`)](#esquema-de-base-de-datos)
-13. [Diagrama de Flujo de Autenticación](#diagrama-de-flujo-de-autenticación)
+2. [Stack Tecnológico](#stack-tecnológico)
+3. [Estructura de Carpetas](#estructura-de-carpetas)
+4. [Flujo General de la Arquitectura](#flujo-general-de-la-arquitectura)
+5. [Archivos de Configuración Raíz](#archivos-de-configuración-raíz)
+6. [Capa de Configuración (`src/config/`)](#capa-de-configuración-srcconfig)
+7. [Capa de Modelos y Esquemas Zod (`src/models/`)](#capa-de-modelos-y-esquemas-zod-srcmodels)
+8. [Capa de Middleware (`src/middleware/`)](#capa-de-middleware-srcmiddleware)
+9. [Capa de Servicios — Motor RAG e IA (`src/services/`)](#capa-de-servicios--motor-rag-e-ia-srcservices)
+   - [Gemini Service (`gemini.service.ts`)](#gemini-service-geminiservicets)
+   - [RAG Service (`rag.service.ts`)](#rag-service-ragservicets)
+10. [Capa de Controladores (`src/controller/`)](#capa-de-controladores-srccontroller)
+    - [Auth Controller (`authController.ts`)](#auth-controller-authcontrollerts)
+    - [Document Controller (`documentController.ts`)](#document-controller-documentcontrollerts)
+    - [Chat Controller (`chatController.ts`)](#chat-controller-chatcontrollerts)
+11. [Capa de Rutas (`src/routes/`)](#capa-de-rutas-srcroutes)
+12. [Punto de Entrada de la App (`src/app.ts`) y Servidor (`src/server.ts`)](#punto-de-entrada-de-la-app-y-servidor)
+13. [Esquema de Base de Datos y pgvector (`prisma/schema.prisma`)](#esquema-de-base-de-datos-y-pgvector-prismaschemaprisma)
+14. [Diagramas de Flujo Detallados](#diagramas-de-flujo-detallados)
+    - [1. Autenticación y Rotación de Refresh Tokens](#1-diagrama-de-autenticación-y-rotación-de-tokens)
+    - [2. Pipeline de Procesamiento e Ingesta de Documentos (RAG)](#2-diagrama-del-pipeline-de-procesamiento-rag)
+    - [3. Consulta en el Chat con Búsqueda Vectorial y Generación LLM](#3-diagrama-de-consulta-en-el-chat-y-respuesta-rag)
 
 ---
 
 ## Visión General del Proyecto
 
-Este proyecto es un **backend API REST** construido con **Node.js + TypeScript** usando el framework **Express 5**. Sirve como la capa de servidor para una aplicación de **RAG (Retrieval-Augmented Generation)**, un sistema que permite a los usuarios subir documentos, hacerles preguntas y obtener respuestas basadas en el contenido de esos documentos usando inteligencia artificial.
+Este proyecto es un **backend API REST** de alto rendimiento construido con **Node.js, TypeScript y Express 5**. Implementa un sistema de **Retrieval-Augmented Generation (RAG)** completo:
 
-### Stack Tecnológico
+1. **Gestión de Identidad & Seguridad**: Autenticación segura mediante JWTs de corta duración y Refresh Tokens opacos en cookies HttpOnly con rotación criptográfica.
+2. **Ingesta de Documentos**: Carga y almacenamiento en disco de documentos (`.pdf`, `.docx`, `.txt`, `.md`), control de extensiones y tamaños máximos.
+3. **Pipeline RAG Asíncrono**: Extracción de texto (con soporte PDF mediante `pdf-parse`), particionamiento semántico (*chunking*) con solapamiento (*overlap*), y generación de embeddings vectoriales de 768 dimensiones utilizando Google Gemini (`gemini-embedding-001`).
+4. **Base de Datos Vectorial**: Almacenamiento e indexación de vectores mediante PostgreSQL con la extensión **`pgvector`**.
+5. **Chat Inteligente**: Búsqueda por similitud semántica de distancia coseno (`<=>`), inyección de contexto dinámico y síntesis de respuestas mediante el modelo LLM `gemini-3.5-flash-lite`, guardando auditoría de referencias (*SourceReferences*).
 
-| Tecnología          | Propósito                                         |
-|---------------------|---------------------------------------------------|
-| **Express 5**       | Framework HTTP para manejar rutas y middleware     |
-| **TypeScript**      | Tipado estático sobre JavaScript                   |
-| **Prisma 7**        | ORM para interactuar con PostgreSQL                |
-| **PostgreSQL**      | Base de datos relacional                           |
-| **Zod 4**           | Validación de datos de entrada (schemas)           |
-| **bcryptjs**        | Hashing seguro de contraseñas                      |
-| **jsonwebtoken**    | Generación y verificación de JWT (access tokens)   |
-| **helmet**          | Cabeceras HTTP de seguridad                        |
-| **cors**            | Control de acceso entre orígenes (Cross-Origin)    |
-| **express-rate-limit** | Protección contra abuso (rate limiting)         |
-| **cookie-parser**   | Lectura de cookies HTTP (refresh tokens)           |
-| **multer**          | Manejo de subida de archivos (preparado, no usado aún) |
+---
+
+## Stack Tecnológico
+
+| Tecnología / Librería | Propósito |
+|-----------------------|-----------|
+| **Node.js & Express 5** | Entorno de ejecución y framework HTTP moderno para manejo de rutas y middlewares. |
+| **TypeScript** | Tipado estático y robustez en tiempo de desarrollo y compilación. |
+| **Prisma 7 ORM** | Capa de abstracción y mapeo objeto-relacional para PostgreSQL. |
+| **PostgreSQL + pgvector** | Base de datos relacional y motor de búsqueda vectorial por similitud semántica. |
+| **@google/generative-ai** | SDK oficial de Google AI para generación de embeddings (`gemini-embedding-001`) y respuestas LLM (`gemini-3.5-flash-lite`). |
+| **pdf-parse** | Extracción y lectura de texto en documentos PDF en memoria. |
+| **Multer** | Middleware para gestión de carga de archivos `multipart/form-data`. |
+| **Zod** | Declaración e inferencia de esquemas con validación estricta de payloads. |
+| **bcryptjs & jsonwebtoken** | Hashing criptográfico de contraseñas y firma/verificación de tokens JWT. |
+| **helmet, cors, cookie-parser** | Cabeceras de seguridad HTTP, control CORS y lectura de cookies. |
+| **express-rate-limit** | Limitación de frecuencia de peticiones para prevenir abuso y controlar costos. |
 
 ---
 
@@ -46,60 +62,87 @@ Este proyecto es un **backend API REST** construido con **Node.js + TypeScript**
 ```
 back/
 ├── prisma/
-│   ├── schema.prisma          # Definición del esquema de la base de datos
-│   └── migrations/            # Migraciones generadas por Prisma
+│   ├── schema.prisma              # Esquema de datos Prisma y configuración de extension pgvector
+│   └── migrations/                # Historial de migraciones SQL aplicadas
+├── storage/
+│   └── documents/                 # Directorio de almacenamiento físico de archivos subidos
+├── docs/
+│   ├── api_documentacion.md       # Documentación de endpoints y contratos de la API
+│   └── explicacion_codigo.md      # Este documento: explicación arquitectónica y técnica
 ├── src/
 │   ├── config/
-│   │   ├── database.ts        # Conexión a PostgreSQL con Prisma Client
-│   │   └── env.ts             # Carga y validación de variables de entorno
-│   ├── controller/
-│   │   └── authController.ts  # Lógica de negocio de autenticación
-│   ├── middleware/
-│   │   ├── autheticate.ts     # Middleware para verificar JWT en rutas protegidas
-│   │   ├── errorHandler.ts    # Middleware global para capturar errores
-│   │   ├── rateLimit.ts       # Limitadores de tasa para prevenir abuso
-│   │   └── validate.ts        # Middleware genérico de validación con Zod
+│   │   ├── database.ts            # Instancia única de PrismaClient
+│   │   └── env.ts                 # Carga y validación de variables de entorno
 │   ├── models/
-│   │   └── auth.schema.ts     # Schemas Zod para validar datos de autenticación
+│   │   ├── auth.schema.ts         # Schemas Zod para registro y login
+│   │   ├── chat.schema.ts         # Schemas Zod para creación de chat y mensajes
+│   │   └── document.schema.ts     # Constantes MIME, extensiones y tipos de documentos
+│   ├── middleware/
+│   │   ├── autheticate.ts         # Verificación de JWT en header Authorization
+│   │   ├── errorHandler.ts        # Manejo global y centralizado de excepciones
+│   │   ├── rateLimit.ts           # Limitadores de frecuencia por endpoint
+│   │   ├── uploadMiddleware.ts    # Configuración de Multer, filtro de tipos y control de errores
+│   │   └── validate.ts            # Middleware genérico para ejecutar validaciones Zod
+│   ├── services/
+│   │   ├── gemini.service.ts      # Cliente de Google Generative AI (Embeddings y LLM)
+│   │   └── rag.service.ts         # Pipeline de ingesta, chunking e indexación/búsqueda pgvector
+│   ├── controller/
+│   │   ├── authController.ts      # Lógica de registro, login, refresh, perfil y logout
+│   │   ├── documentController.ts  # Subida, listado, detalle, borrado y reprocesamiento
+│   │   └── chatController.ts      # Hilos de conversación, envío de mensajes y consulta RAG
 │   ├── routes/
-│   │   ├── auth.routes.ts     # Definición de rutas de autenticación
-│   │   └── index.ts           # Agrupador central de todas las rutas
-│   ├── app.ts                 # Configuración de Express (middlewares, rutas)
-│   └── server.ts              # Punto de entrada: arranca el servidor
-├── .env                       # Variables de entorno (NO versionar)
-├── package.json               # Dependencias y scripts npm
-├── prisma.config.ts           # Configuración de Prisma 7
-└── tsconfig.ts                # Configuración de TypeScript
+│   │   ├── auth.routes.ts         # Definición de rutas del módulo de autenticación
+│   │   ├── document.routes.ts     # Definición de rutas de documentos y carga
+│   │   ├── chat.routes.ts         # Definición de rutas de chat y mensajería
+│   │   └── index.ts               # Agrupador central bajo el prefijo /api/v1
+│   ├── app.ts                     # Configuración de Express, middlewares globales y healthcheck
+│   └── server.ts                  # Inicialización y arranque del servidor HTTP
+├── .env                           # Variables de entorno secretas (no versionadas)
+├── package.json                   # Manifiesto de dependencias y scripts
+├── prisma.config.ts               # Configuración central de Prisma 7
+└── tsconfig.ts                    # Configuración del compilador TypeScript
 ```
 
 ---
 
-## Flujo General de la Aplicación
+## Flujo General de la Arquitectura
 
 ```
-1. server.ts se ejecuta
-   ├── Carga variables de entorno (env.ts)
-   ├── Conecta a PostgreSQL vía Prisma (database.ts)
-   └── Arranca Express en el puerto configurado
-
-2. Una petición HTTP llega al servidor
-   ├── Pasa por middlewares globales (app.ts):
-   │   ├── helmet()        → Seguridad de cabeceras
-   │   ├── cors()          → Validación de origen
-   │   ├── express.json()  → Parsea body JSON
-   │   ├── express.urlencoded() → Parsea body URL-encoded
-   │   └── cookieParser()  → Parsea cookies
-   │
-   ├── Si la ruta es GET /health → Responde estado del servidor
-   │
-   ├── Si la ruta comienza con /api/v1 → Entra al router principal (routes/index.ts)
-   │   └── /api/v1/auth/* → Entra a auth.routes.ts
-   │       ├── Middleware de validación (validate.ts + auth.schema.ts)
-   │       ├── Middleware de rate limiting (rateLimit.ts)
-   │       ├── Middleware de autenticación (autheticate.ts) [solo rutas protegidas]
-   │       └── Controlador (authController.ts) → Ejecuta la lógica de negocio
-   │
-   └── Si ocurre un error → errorHandler.ts lo captura y responde
+                       ┌────────────────────────┐
+                       │     Cliente (SPA/UI)   │
+                       └───────────┬────────────┘
+                                   │  HTTP / HTTPS
+                                   ▼
+                       ┌────────────────────────┐
+                       │   Express App (app.ts) │
+                       │  - Helmet / CORS       │
+                       │  - JSON / CookieParser │
+                       └───────────┬────────────┘
+                                   │
+              ┌────────────────────┼────────────────────┐
+              ▼                    ▼                    ▼
+     /api/v1/auth         /api/v1/documents       /api/v1/chats
+     (auth.routes.ts)     (document.routes.ts)   (chat.routes.ts)
+              │                    │                    │
+              │ [authenticate]     │ [Multer / Storage] │ [RateLimit + validate]
+              ▼                    ▼                    ▼
+     authController.ts    documentController.ts  chatController.ts
+              │                    │                    │
+              │                    ├────────────────────┘
+              │                    ▼
+              │            ┌─────────────────────────────┐
+              │            │  RAG & AI Services          │
+              │            │  - rag.service.ts           │
+              │            │  - gemini.service.ts        │
+              │            └──────────────┬──────────────┘
+              │                           │
+              ▼                           ▼
+     ┌───────────────────────────────────────────────────────────┐
+     │              PostgreSQL + Prisma ORM + pgvector           │
+     │  - Users & Refresh Tokens                                 │
+     │  - Documents & Document Chunks (vector 768dim)            │
+     │  - Chats, Messages & Source References                    │
+     └───────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -107,706 +150,414 @@ back/
 ## Archivos de Configuración Raíz
 
 ### `package.json`
-
-Define las dependencias del proyecto y los scripts de ejecución.
-
-```json
-"scripts": {
-    "dev": "nodemon --exec tsx src/server.ts",  // Desarrollo con hot-reload
-    "build": "tsc",                              // Compila TypeScript a JavaScript
-    "start": "node dist/server.js",              // Ejecuta la versión compilada
-    "db:generate": "prisma generate",            // Genera el Prisma Client
-    "db:migrate": "prisma migrate dev",          // Crea/aplica migraciones
-    "db:studio": "prisma studio"                 // Abre el explorador visual de datos
-}
-```
-
-- **`npm run dev`**: Usa `nodemon` para reiniciar automáticamente cuando detecta cambios en archivos `.ts` o `.json`. Usa `tsx` como ejecutor de TypeScript sin necesidad de compilar previamente.
-- **`type: "module"`**: El proyecto usa ESModules (`import/export`) en lugar de CommonJS (`require/module.exports`).
-
----
-
-### `tsconfig.ts`
-
-Configura el compilador de TypeScript:
-
-```json
-{
-    "compilerOptions": {
-        "target": "ES2022",              // Código generado compatible con ES2022
-        "module": "NodeNext",            // Sistema de módulos nativo de Node.js
-        "moduleResolution": "NodeNext",  // Resolución de módulos estilo Node.js moderno
-        "rootDir": "./src",              // Carpeta raíz del código fuente
-        "outDir": "./dist",              // Carpeta de salida para código compilado
-        "strict": true,                  // Modo estricto de TypeScript
-        "esModuleInterop": true,         // Interoperabilidad con módulos CommonJS
-        "skipLibCheck": true             // No verifica tipos de archivos .d.ts externos
-    },
-    "include": ["src/**/*"],             // Solo compila archivos dentro de src/
-    "exclude": ["node_modules", "dist"]  // Ignora estas carpetas
-}
-```
-
----
+- Configurado con `"type": "module"` para soporte nativo de ECMAScript Modules (`import`/`export`).
+- Scripts principales:
+  - `npm run dev`: Ejecuta el servidor en desarrollo con `nodemon` y `tsx` para transpilación instantánea y hot-reload.
+  - `npm run build`: Compila el código fuente a JavaScript puro en la carpeta `dist/`.
+  - `npm run start`: Ejecuta la versión compilada en producción.
+  - `npm run db:generate` / `db:migrate`: Sincronización del cliente Prisma y migraciones SQL.
 
 ### `prisma.config.ts`
-
-Archivo de configuración de **Prisma 7** (nueva versión). Define dónde encontrar el esquema y las migraciones, y de dónde obtener la URL de conexión a la base de datos.
-
+Define la configuración programática para **Prisma 7**:
 ```typescript
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",     // Ubicación del esquema
-  migrations: {
-    path: "prisma/migrations",        // Ubicación de las migraciones
-  },
-  datasource: {
-    url: process.env["DATABASE_URL"], // URL de conexión desde .env
-  },
+  schema: "prisma/schema.prisma",
+  migrations: { path: "prisma/migrations" },
+  datasource: { url: process.env["DATABASE_URL"] },
 });
 ```
 
-> **Nota**: En Prisma 7 la URL del datasource se configura aquí en lugar de en `schema.prisma`. Esta es una **breaking change** respecto a versiones anteriores.
-
 ---
 
-### `.env`
-
-Variables de entorno que configuran el comportamiento de la aplicación:
-
-| Variable              | Descripción                                     | Valor ejemplo                                    |
-|-----------------------|-------------------------------------------------|--------------------------------------------------|
-| `PORT`                | Puerto del servidor HTTP                         | `3000`                                           |
-| `NODE_ENV`            | Entorno de ejecución                             | `development`                                    |
-| `DATABASE_URL`        | URL de conexión a PostgreSQL                     | `postgresql://postgres:root@localhost:5432/ragvector` |
-| `JWT_SECRET`          | Clave secreta para firmar access tokens          | (cadena aleatoria larga)                          |
-| `JWT_REFRESH_SECRET`  | Clave secreta para refresh tokens                | (cadena aleatoria diferente)                      |
-| `JWT_ACCESS_EXPIRES`  | Tiempo de vida del access token                  | `15m`                                            |
-| `JWT_REFRESH_EXPIRES` | Tiempo de vida del refresh token                 | `30d`                                            |
-| `FRONTEND_URL`        | URL del frontend (para configurar CORS)          | `http://localhost:5173`                           |
-
----
-
-## Capa de Configuración
+## Capa de Configuración (`src/config/`)
 
 ### `src/config/env.ts`
-
-**Propósito**: Carga, valida y centraliza el acceso a todas las variables de entorno.
+Centraliza la lectura y validación de variables de entorno del sistema. Contiene la función `required(key)` que interrumpe el arranque inmediatamente si falta alguna variable crítica.
 
 ```typescript
-import 'dotenv/config';
+export const env = {
+    port: Number(process.env.PORT) || 3000,
+    nodeEnv: process.env.NODE_ENV || 'development',
+    databaseUrl: required('DATABASE_URL'),
+    jwtSecret: required('JWT_SECRET'),
+    jwtRefreshSecret: required('JWT_REFRESH_SECRET'),
+    jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES || '15m',
+    jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || '30d',
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5500',
+    uploadDir: process.env.UPLOAD_DIR || 'storage/documents',
+    maxFileSizeMb: Number(process.env.MAX_FILE_SIZE_MB) || 20,
+    geminiApiKey: required('GEMINI_API_KEY')
+};
 ```
-- Carga las variables del archivo `.env` al `process.env` al momento de importar este módulo.
-
-#### `function required(key: string): string`
-- **Qué hace**: Busca una variable de entorno por nombre. Si no existe, **lanza un error** que detiene la aplicación inmediatamente.
-- **Por qué existe**: Falla rápido al arrancar en lugar de fallar después con errores crípticos en tiempo de ejecución.
-- **Parámetro**: `key` — El nombre de la variable de entorno (ej: `"JWT_SECRET"`).
-- **Retorna**: El valor de la variable como string.
-
-#### `export const env`
-- **Qué hace**: Exporta un objeto con todas las variables de entorno ya parseadas y tipadas.
-- **Campos**:
-  - `port`: Número del puerto (default: `3000`).
-  - `nodeEnv`: Entorno (`"development"` por defecto).
-  - `databaseUrl`: URL de la base de datos (**requerida**).
-  - `jwtSecret`: Clave secreta para JWT (**requerida**).
-  - `jwtRefreshSecret`: Clave para refresh tokens (**requerida**).
-  - `jwtAccessExpires`: Duración del access token (default: `"15m"`).
-  - `jwtRefreshExpires`: Duración del refresh token (default: `"30d"`).
-  - `frontendUrl`: URL del frontend para CORS (default: `"http://localhost:5173"`).
-
----
 
 ### `src/config/database.ts`
-
-**Propósito**: Crea y exporta una instancia única del Prisma Client para interactuar con PostgreSQL.
-
-```typescript
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
-```
-- **`PrismaPg`**: Adaptador de Prisma 7 que usa el driver nativo `pg` (node-postgres) en lugar del binario propio de Prisma. Esto da más control sobre la conexión.
-
-```typescript
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
-```
-- **Patrón Singleton**: Almacena la instancia de Prisma en `globalThis` para evitar crear múltiples conexiones durante hot-reload en desarrollo. Cuando `nodemon` reinicia el proceso, el módulo se re-evalúa, pero `globalThis` persiste en el mismo proceso.
-
-```typescript
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter, log: ['query', 'error', 'warn'] })
-```
-- **Qué hace**: Reutiliza la instancia existente o crea una nueva.
-- **`log: ['query', 'error', 'warn']`**: Activa logging de todas las queries SQL, errores y advertencias de Prisma en la consola.
-
-```typescript
-if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = prisma
-}
-```
-- En producción **no** guarda la referencia global (no es necesario porque no hay hot-reload).
+Inicializa y exporta una instancia singleton de `PrismaClient` para reutilizar el pool de conexiones a PostgreSQL.
 
 ---
 
-## Capa de Modelos / Schemas
+## Capa de Modelos y Esquemas Zod (`src/models/`)
 
 ### `src/models/auth.schema.ts`
+- **`registerSchema`**: Exige email válido y contraseña mínima de 8 caracteres con al menos una mayúscula y un número.
+- **`loginSchema`**: Valida que email y password estén presentes.
 
-**Propósito**: Define las reglas de validación para los datos de entrada de autenticación usando **Zod**.
+### `src/models/chat.schema.ts`
+- **`CreateChatSchema`**: Valida la creación de un nuevo chat (`title` opcional).
+- **`SendMessageSchema`**: Valida que `content` sea una cadena no vacía (`min(1)`).
 
-#### `registerSchema`
-```typescript
-export const registerSchema = z.object({
-    email: z.string().email({ message: 'Email Invalido' }),
-    password: z.string()
-        .min(8, { message: 'minimo 8 caracteres' })
-        .regex(/[A-Z]/, { message: 'Debe tener al menos una mayúscula' })
-        .regex(/[0-9]/, { message: 'Debe tener al menos un número' }),
-})
-```
-- **Qué valida**:
-  - `email`: Debe ser un string con formato de email válido.
-  - `password`: Mínimo 8 caracteres, al menos una letra mayúscula, al menos un número.
-- **Cuándo se usa**: En la ruta `POST /api/v1/auth/register`.
-
-#### `loginSchema`
-```typescript
-export const loginSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(1)
-})
-```
-- **Qué valida**:
-  - `email`: Formato de email válido.
-  - `password`: Al menos 1 carácter (no vacío). La validación es menos estricta porque el login solo necesita verificar contra la base de datos.
-- **Cuándo se usa**: En la ruta `POST /api/v1/auth/login`.
-
-#### Tipos inferidos
-```typescript
-export type registerSchema = z.infer<typeof registerSchema>
-export type loginSchema = z.infer<typeof loginSchema>
-```
-- **Qué hacen**: Generan tipos TypeScript automáticamente desde los schemas Zod. Así el tipo de datos siempre está sincronizado con las reglas de validación.
+### `src/models/document.schema.ts`
+- **`ALLOWED_MIME_TYPES`**: Lista blanca de tipos MIME permitidos (`application/pdf`, `.docx`, `text/plain`, `text/markdown`).
+- **`ALLOWED_EXTENSIONS`**: Lista de extensiones (`.pdf`, `.docx`, `.txt`, `.md`).
+- Tipos TypeScript para el ciclo de vida del documento: `DocumentStatus = 'uploaded' | 'processing' | 'processed' | 'failed'`.
 
 ---
 
-## Capa de Middleware
-
-### `src/middleware/validate.ts`
-
-**Propósito**: Middleware genérico que valida el `req.body` contra cualquier schema Zod.
-
-#### `validate(schema: z.ZodSchema)`
-```typescript
-export const validate = (schema: z.ZodSchema) =>
-    (req: Request, res: Response, next: NextFunction): void => {
-        const result = schema.safeParse(req.body)
-        if (!result.success) {
-            res.status(400).json({
-                success: false,
-                message: 'validacion error',
-                errors: result.error.flatten().fieldErrors,
-            })
-            return;
-        }
-        req.body = result.data
-        next()
-    }
-```
-- **Qué hace**: Es una **Higher-Order Function** (función que retorna otra función). Recibe un schema Zod y retorna un middleware de Express.
-- **Flujo**:
-  1. Usa `safeParse()` para validar sin lanzar excepciones.
-  2. Si la validación **falla**: Responde con `400 Bad Request` y los errores detallados por campo.
-  3. Si la validación **pasa**: Reemplaza `req.body` con los datos sanitizados (Zod puede transformar/limpiar datos) y llama a `next()`.
-- **`flatten().fieldErrors`**: Transforma los errores de Zod en un objeto simple `{ campo: ["error1", "error2"] }` fácil de consumir desde el frontend.
-
----
+## Capa de Middleware (`src/middleware/`)
 
 ### `src/middleware/autheticate.ts`
+Intercepta la petición, extrae el token del header `Authorization: Bearer <token>`, lo verifica con `jsonwebtoken` usando `env.jwtSecret` y adjunta el payload en `req.user`. Si el token es inválido o no existe, responde con código `401 Unauthorized`.
 
-**Propósito**: Protege rutas verificando que el request incluya un JWT válido.
+### `src/middleware/validate.ts`
+Middleware de orden superior que recibe un schema de Zod y valida el `req.body`. Si la validación falla, formatea los mensajes por campo y devuelve `400 Bad Request` sin llegar al controlador.
 
-#### `interface AuthPayload`
-```typescript
-export interface AuthPayload {
-    sub: string,    // ID del usuario
-    email: string,  // Email del usuario
-    iat: number,    // Issued At (cuándo se creó el token)
-    exp: number     // Expiration (cuándo expira)
-}
-```
-- Define la estructura del payload decodificado del JWT.
-
-#### Extensión de tipos de Express
-```typescript
-declare global {
-    namespace Express {
-        interface Request {
-            user?: AuthPayload
-        }
-    }
-}
-```
-- **Qué hace**: Extiende la interfaz `Request` de Express globalmente para agregar la propiedad `user`. Esto permite acceder a `req.user` en cualquier controlador sin errores de TypeScript.
-
-> **⚠️ Nota**: Hay una inconsistencia en el código. La declaración global define `auser?` (línea 16 del archivo original), pero el middleware asigna a `req.user` (línea 30). Los controladores también usan `req.user`. Esto funciona porque TypeScript no verifica estrictamente las propiedades extra en runtime.
-
-#### `authenticate(req, res, next)`
-```typescript
-export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
-    const authHeader = req.headers.authorization
-    if (!authHeader?.startsWith('Bearer ')) {
-        res.status(401).json({ success: false, message: 'token no proporcionado' })
-        return;
-    }
-    const token = authHeader.split(' ')[1]
-    try {
-        const payload = jwt.verify(token, env.jwtSecret) as AuthPayload
-        req.user = payload;
-        next()
-    } catch {
-        res.status(401).json({ success: false, message: 'token invalido' })
-    }
-}
-```
-- **Flujo**:
-  1. Extrae el header `Authorization`.
-  2. Verifica que comience con `"Bearer "`. Si no, responde `401`.
-  3. Extrae el token (todo lo que va después de `"Bearer "`).
-  4. Usa `jwt.verify()` para decodificar y verificar la firma del token.
-  5. Si es válido, adjunta el payload a `req.user` y llama a `next()`.
-  6. Si `verify()` lanza error (token expirado, firma inválida, etc.), responde `401`.
-
----
-
-### `src/middleware/errorHandler.ts`
-
-**Propósito**: Middleware global para capturar errores no manejados en la aplicación.
-
-#### `errorHandler(res, req, next, err)`
-```typescript
-export const errorHandler = (res: Response, req: Request, next: NextFunction, err: Error): void => {
-    console.error(`[ERROR] ${req.method} ${req.path}:`, err.message)
-    res.status(500).json({
-        success: false,
-        message: process.env.NODE_ENV === 'production'
-            ? 'Error interno del servidor'
-            : err.message,
-    })
-}
-```
-- **Qué hace**: Captura cualquier error que se propague sin ser manejado.
-- **En desarrollo**: Muestra el mensaje de error real en la respuesta (útil para debugging).
-- **En producción**: Muestra un mensaje genérico para no exponer detalles internos.
-
-> **⚠️ Bug detectado**: La firma de los parámetros está invertida. Express espera `(err, req, res, next)` pero el código tiene `(res, req, next, err)`. Esto puede causar que el error handler no funcione correctamente.
-
----
+### `src/middleware/uploadMiddleware.ts`
+Configura la subida de archivos mediante `multer`:
+1. **`storage`**: Guarda los archivos en la carpeta configurada (`env.uploadDir`), asignando un nombre único mediante UUID v4 (`${uuid()}${ext}`) para evitar colisiones y caracteres inválidos.
+2. **`fileFilter`**: Valida de forma estricta que tanto el MIME Type como la extensión del archivo pertenezcan a la lista blanca.
+3. **`limits`**: Limita el tamaño del archivo a `env.maxFileSizeMb` megabytes y a 1 solo archivo por petición.
+4. **`hadleUploadError`**: Atrapa errores de Multer (como archivo demasiado grande `LIMIT_FILE_SIZE`) o rechazos del filtro, respondiendo en formato JSON con `400 Bad Request`.
 
 ### `src/middleware/rateLimit.ts`
+Configura limitadores de tasa basados en IP:
+- **`LoginLimiter`**: 5 peticiones / 15 minutos.
+- **`registerLimiter`**: 10 peticiones / 1 hora.
+- **`refreshLimiter`**: 30 peticiones / 1 hora.
+- **`chatLimiter`**: 30 peticiones / 1 minuto (protege el consumo de la API de Google Gemini).
 
-**Propósito**: Define limitadores de tasa para prevenir abuso en diferentes endpoints.
-
-#### `LoginLimiter`
-```typescript
-export const LoginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,  // Ventana de 15 minutos
-    max: 5,                     // Máximo 5 intentos por ventana
-    standardHeaders: true,      // Envía headers RateLimit-* estándar
-    legacyHeaders: false,       // No envía headers X-RateLimit-* legacy
-    message: { success: false, message: 'Demasiados intentos de inicio de sesión...' }
-})
-```
-- **Uso**: Protege `POST /login`. Un usuario no puede intentar más de 5 logins cada 15 minutos.
-
-#### `registerLimiter`
-```typescript
-export const registerLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,  // Ventana de 1 hora
-    max: 10,                    // Máximo 10 registros por hora
-    message: { ... }
-})
-```
-- **Uso**: Protege `POST /register`. Previene la creación masiva de cuentas.
-
-#### `refreshLimiter`
-```typescript
-export const refreshLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,  // Ventana de 1 hora
-    max: 30,                    // Máximo 30 refreshes por hora
-    message: { ... }
-})
-```
-- **Uso**: Protege `POST /refresh`. Limita la cantidad de veces que se puede renovar un token.
-
-#### `chatLimiter`
-```typescript
-export const chatLimiter = rateLimit({
-    windowMs: 60 * 1000,  // Ventana de 1 minuto
-    max: 30,               // Máximo 30 consultas por minuto
-    message: { ... }
-})
-```
-- **Uso**: Preparado para proteger endpoints de chat (aún no implementados en las rutas).
+### `src/middleware/errorHandler.ts`
+Middleware global de captura de excepciones no controladas. Evita que el servidor se caiga y retorna una respuesta limpia `500 Internal Server Error`.
 
 ---
 
-## Capa de Controladores
+## Capa de Servicios — Motor RAG e IA (`src/services/`)
 
-### `src/controller/authController.ts`
+Esta capa contiene la lógica central del sistema de inteligencia artificial y procesamiento de lenguaje natural.
 
-**Propósito**: Contiene toda la lógica de negocio de autenticación. Es el archivo más denso del proyecto.
+### Gemini Service (`gemini.service.ts`)
 
----
+Encapsula la comunicación directa con la API de **Google Generative AI**:
 
-#### `generateAccessToken(userId: string, email: string): string`
 ```typescript
-function generateAccessToken(userId: string, email: string): string {
-    return jwt.sign(
-        { sub: userId, email },
-        env.jwtSecret,
-        { expiresIn: env.jwtAccessExpires as jwt.SignOptions['expiresIn'] }
-    )
-}
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { env } from '../config/env.js';
+
+const genAI = new GoogleGenerativeAI(env.geminiApiKey);
 ```
-- **Qué hace**: Genera un **JWT access token** firmado con `jwtSecret`.
-- **Payload del token**: `{ sub: "user-uuid", email: "user@email.com" }`.
-- **Expiración**: Configurable vía `.env` (default: 15 minutos).
-- **Uso**: Se llama en `login` y `refresh` para generar nuevos access tokens.
+
+#### Métodos:
+1. **`getEmbedding(text: string): Promise<number[]>`**:
+   - Utiliza el modelo especializado **`gemini-embedding-001`**.
+   - Genera un vector con dimensionalidad exacta de **768 valores numéricos** (`outputDimensionality: 768`), alineado con la columna `vector(768)` de PostgreSQL.
+   - Retorna el vector de coma flotante para su indexación o búsqueda por similitud.
+
+2. **`generateChatResponse(prompt: string, context: string): Promise<string>`**:
+   - Utiliza el modelo LLM **`gemini-3.5-flash-lite`**.
+   - Define una directiva de sistema (*System Instruction*) estricta:
+     > *"You are a helpful AI assistant. Use the following context retrieved from the user's documents to answer their question. If the answer is not in the context, say that you don't know based on the provided documents."*
+   - Inyecta el contexto obtenido de los fragmentos más relevantes y envía el mensaje del usuario para generar una respuesta fundamentada (*grounded*).
 
 ---
 
-#### `createRefreshToken(userId: string): Promise<string>`
+### RAG Service (`rag.service.ts`)
+
+Implementa el pipeline completo de ingesta, fragmentación, generación de vectores y recuperación por similitud.
+
+#### 1. Particionamiento de Texto con Overlap (`splitTextIntoChunks`)
 ```typescript
-async function createRefreshToken(userId: string): Promise<string> {
-    const token = crypto.randomBytes(64).toString('hex')              // 1
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex')  // 2
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 30)                      // 3
-    await prisma.refreshToken.create({ data: { userId, tokenHash, expiresAt } }) // 4
-    return token                                                      // 5
-}
+function splitTextIntoChunks(text: string, chunkSize = 1000, overlap = 200): string[]
 ```
-- **Flujo**:
-  1. Genera 64 bytes aleatorios y los convierte a hexadecimal → el **refresh token raw**.
-  2. Hashea el token con SHA-256 → el **hash** que se almacena en la base de datos.
-  3. Calcula la fecha de expiración: 30 días desde ahora.
-  4. Guarda el hash en la tabla `refresh_tokens`.
-  5. Retorna el token **raw** (sin hashear) para enviarlo al cliente via cookie.
-- **Seguridad**: Solo se almacena el hash. Si la base de datos se compromete, los tokens raw no se exponen.
+- Divide el texto continuo en bloques de máximo 1000 caracteres.
+- Mantiene un solapamiento (*overlap*) de 200 caracteres entre fragmentos contiguos para preservar el contexto en los límites de cada fragmento.
+- **Corte Inteligente**: Busca activamente saltos de línea (`\n`) o espacios cercanos al límite para no partir palabras u oraciones a la mitad.
 
----
+#### 2. Procesamiento de Documentos (`processDocument(documentId: string)`)
+- **Paso 1**: Obtiene los metadatos del documento desde la base de datos y actualiza su estado a `processing`.
+- **Paso 2**: Lee el archivo físico del disco:
+  - Si es un PDF (`application/pdf`), procesa el buffer con la librería `pdf-parse` para extraer el texto.
+  - Si es texto plano o Markdown, realiza lectura directa UTF-8 con `fs/promises`.
+- **Paso 3**: Ejecuta `splitTextIntoChunks(text)` sobre el texto extraído.
+- **Paso 4**: Itera sobre cada fragmento:
+  - Llama a `geminiService.getEmbedding(content)` para obtener el vector de 768 dimensiones.
+  - Formatea el vector como string compatible con pgvector: `'[v1, v2, ..., v768]'`.
+  - Estima los tokens aproximados (`content.length / 4`).
+  - Realiza una inserción SQL directa mediante `prisma.$executeRaw`:
+    ```sql
+    INSERT INTO document_chunks (id, document_id, chunk_index, content, tokens, embedding, created_at)
+    VALUES (${chunkId}, ${documentId}, ${i}, ${content}, ${tokens}, ${embeddingString}::vector, NOW())
+    ```
+- **Paso 5**: Marca el estado del documento como `processed` al terminar exitosamente, o como `failed` en caso de error.
 
-#### `COOKIE_OPTIONS`
+#### 3. Búsqueda Semántica Vectorial (`searchSimilarChunks`)
 ```typescript
-const COOKIE_OPTIONS = {
-    httpOnly: true,                          // No accesible desde JavaScript del navegador
-    secure: env.nodeEnv === 'production',    // Solo HTTPS en producción
-    sameSite: 'strict' as const,             // No se envía en requests cross-site
-    maxAge: 30 * 24 * 60 * 60 * 1000         // 30 días en milisegundos
-}
+async searchSimilarChunks(queryEmbedding: number[], limit = 5): Promise<any[]>
 ```
-- Configuración de la cookie del refresh token con las mejores prácticas de seguridad:
-  - **`httpOnly`**: Previene ataques XSS (JavaScript no puede leer la cookie).
-  - **`secure`**: Solo se transmite sobre HTTPS (activo solo en producción).
-  - **`sameSite: 'strict'`**: La cookie no se envía en requests desde otros dominios (previene CSRF).
+- Convierte el embedding de la pregunta en formato `vector`.
+- Ejecuta una consulta SQL optimizada con Prisma:
+  ```sql
+  SELECT id, document_id, content, 
+         1 - (embedding <=> ${embeddingString}::vector) as similarity
+  FROM document_chunks
+  ORDER BY embedding <=> ${embeddingString}::vector
+  LIMIT ${limit}
+  ```
+- El operador `<=>` calcula la **distancia coseno** entre el vector de la pregunta y los vectores almacenados. Ordenar de menor a mayor distancia equivale a buscar los fragmentos más cercanos semánticamente.
+- Calcula el puntaje de similitud coseno como `1 - distancia`.
 
 ---
 
-#### `register(req, res)`
-```typescript
-export const register = async (req: Request, res: Response): Promise<void> => { ... }
-```
-- **Endpoint**: `POST /api/v1/auth/register`
-- **Flujo**:
-  1. Extrae `email` y `password` del body (ya validados por `validate(registerSchema)`).
-  2. Busca si ya existe un usuario con ese email.
-  3. Si existe → responde `409 Conflict`.
-  4. Hashea la contraseña con bcrypt (factor de costo 12).
-  5. Crea el usuario en la base de datos.
-  6. Responde `201 Created` con un mensaje de éxito.
-- **Nota**: No inicia sesión automáticamente; el usuario debe hacer login después.
+## Capa de Controladores (`src/controller/`)
+
+### Auth Controller (`authController.ts`)
+- **`register`**: Valida duplicados, hashea la contraseña con `bcrypt.hash(..., 12)` y crea el usuario.
+- **`login`**: Verifica credenciales con `bcrypt.compare`, genera access token (JWT), genera refresh token aleatorio, guarda el hash SHA-256 en la tabla `refresh_tokens`, y responde estableciendo la cookie HTTP-only.
+- **`refresh`**: Lee la cookie, valida el hash del token en la base de datos y que no esté expirado, **elimina el token usado** y genera un nuevo par (rotación estricta de tokens).
+- **`me`**: Retorna la información básica del usuario autenticado (`req.user.sub`).
+- **`logout`**: Elimina el registro del refresh token de la base de datos y limpia la cookie del cliente.
 
 ---
 
-#### `login(req, res)`
-```typescript
-export const login = async (req: Request, res: Response): Promise<void> => { ... }
-```
-- **Endpoint**: `POST /api/v1/auth/login`
-- **Flujo**:
-  1. Busca el usuario por email.
-  2. Si no existe o la contraseña no coincide → responde `401 Unauthorized`.
-  3. Genera un access token (JWT).
-  4. Crea un refresh token y lo almacena en la base de datos.
-  5. Envía el refresh token como **cookie HTTP-only**.
-  6. Responde con el access token en el body JSON y los datos básicos del usuario.
+### Document Controller (`documentController.ts`)
+
+Controla el ciclo de vida de los archivos y su conexión con el pipeline RAG:
+
+- **`uploadDocument`**:
+  - Verifica la recepción del archivo desde `req.file`.
+  - Comprueba si el usuario ya subió previamente un archivo con el mismo nombre (`originalName`). En caso afirmativo, **elimina el archivo físico recién cargado** para evitar archivos huérfanos y devuelve `409 Conflict`.
+  - Crea el registro del documento en la tabla `documents` con estado inicial `uploaded`.
+  - Dispara el procesamiento asíncrono en segundo plano:
+    ```typescript
+    ragService.processDocument(document.id).catch(console.error);
+    ```
+  - Responde de inmediato con `201 Created`, sin bloquear la conexión HTTP del cliente.
+- **`listDocuments`**: Consulta y retorna todos los documentos pertenecientes al `userId` autenticado, convirtiendo `fileSize` (BigInt) a string.
+- **`getDocument`**: Devuelve los detalles de un documento específico y su lista de `chunks` (índice y tokens), asegurando que pertenezca al usuario autenticado y ocultando la ruta física interna en el servidor (`storagePath`).
+- **`deleteDocument`**:
+  - Elimina el registro de la base de datos (eliminando en cascada chunks y vectores gracias a `onDelete: Cascade`).
+  - Elimina el archivo del sistema de archivos local (`fs.unlink`).
+- **`reprocessDocument`**: Permite reiniciar el pipeline RAG si un documento falló o requiere actualización, validando que no se encuentre ya en estado `processing`.
 
 ---
 
-#### `refresh(req, res)`
-```typescript
-export const refresh = async (req: Request, res: Response): Promise<void> => { ... }
-```
-- **Endpoint**: `POST /api/v1/auth/refresh`
-- **Flujo (Rotación de Refresh Token)**:
-  1. Lee el refresh token de la cookie.
-  2. Si no hay cookie → responde `401`.
-  3. Hashea el token con SHA-256 y busca en la base de datos.
-  4. Verifica que no esté expirado (`expiresAt > now`).
-  5. Si no se encuentra o está expirado → responde `401`.
-  6. **Elimina** el refresh token usado (ya no es válido).
-  7. Genera un **nuevo** access token y un **nuevo** refresh token.
-  8. Envía el nuevo refresh token como cookie y el access token en el body.
-- **Seguridad**: Este patrón de **rotación de tokens** invalida el token anterior. Si un atacante roba un refresh token y lo usa, el token legítimo del usuario se invalida, lo cual es detectable.
+### Chat Controller (`chatController.ts`)
+
+Maneja las conversaciones, el historial de mensajes y la orquestación RAG para generación de respuestas:
+
+- **`createChat`**: Crea una nueva sesión de conversación asociada al usuario autenticado.
+- **`listChats`**: Lista los chats del usuario ordenados por `updatedAt` descendente.
+- **`getChat`**: Obtiene un chat por ID con todos sus mensajes ordenados cronológicamente (`createdAt asc`).
+- **`deleteChat`**: Elimina el chat y todos sus mensajes asociados en cascada.
+- **`sendMessage`**: Orquesta el flujo completo de consulta inteligente:
+  1. Verifica la existencia y pertenencia del chat.
+  2. Guarda el mensaje del usuario con `role: 'user'`.
+  3. Solicita a `geminiService.getEmbedding(content)` el vector de la pregunta.
+  4. Llama a `ragService.searchSimilarChunks(queryEmbedding, 5)` para recuperar los 5 fragmentos de mayor relevancia.
+  5. Concatena los textos de los chunks como contexto y solicita la respuesta al LLM mediante `geminiService.generateChatResponse(content, contextText)`.
+  6. Guarda la respuesta generada con `role: 'assistant'`.
+  7. Registra en la tabla `source_references` la relación entre el mensaje del asistente y cada chunk utilizado, junto con su puntaje de similitud (`similarityScore`).
+  8. Actualiza la marca de tiempo `updatedAt` del chat.
+  9. Devuelve tanto el mensaje del usuario como la respuesta del asistente en una sola respuesta atómica.
 
 ---
 
-#### `me(req, res)`
-```typescript
-export const me = async (req: Request, res: Response): Promise<void> => { ... }
-```
-- **Endpoint**: `GET /api/v1/auth/me`
-- **Requiere autenticación**: Sí (middleware `authenticate`).
-- **Flujo**:
-  1. Extrae el `userId` del payload JWT (`req.user!.sub`).
-  2. Busca el usuario en la base de datos.
-  3. Si no existe → responde `404`.
-  4. Responde con `id`, `email` y `createdAt` del usuario.
-- **Uso típico**: El frontend llama a este endpoint al cargar la app para verificar si la sesión es válida.
-
----
-
-#### `logout(req, res)`
-```typescript
-export const logout = async (req: Request, res: Response): Promise<void> => { ... }
-```
-- **Endpoint**: `POST /api/v1/auth/logout`
-- **Requiere autenticación**: Sí (middleware `authenticate`).
-- **Flujo**:
-  1. Lee el refresh token de la cookie.
-  2. Si existe, hashea el token y elimina todos los registros que coincidan en la base de datos.
-  3. Limpia la cookie `refreshToken` del navegador.
-  4. Responde con mensaje de éxito.
-- **Nota**: `deleteMany` en lugar de `delete` para manejar el caso de que existan duplicados.
-
----
-
-## Capa de Rutas
+## Capa de Rutas (`src/routes/`)
 
 ### `src/routes/index.ts`
-
-**Propósito**: Punto central de enrutamiento. Agrupa todas las sub-rutas bajo el prefijo `/api/v1`.
-
+Punto de entrada de enrutamiento que monta todos los submódulos:
 ```typescript
+import { Router } from 'express'
+import authRoutes from './auth.routes.js'
+import documentRoutes from './document.routes.js'
+import chatRoutes from './chat.routes.js'
+
 const router = Router()
-router.use('/auth', authRoutes)  // Todas las rutas de auth se montan bajo /auth
+
+router.use('/auth', authRoutes)
+router.use('/documents', documentRoutes)
+router.use('/chats', chatRoutes)
+
 export default router
 ```
-- **Resultado**: Las rutas de autenticación quedan en `/api/v1/auth/*`.
-- **Escalabilidad**: Para agregar nuevas funcionalidades (ej: documentos, chats), se agregan aquí:
-  ```typescript
-  router.use('/documents', documentRoutes)
-  router.use('/chats', chatRoutes)
+
+### `src/routes/document.routes.ts`
+Aplica el middleware `authenticate` a todas las rutas. En la ruta de subida, encadena:
+```typescript
+router.post('/', upload.single('file'), hadleUploadError, uploadDocument)
+```
+
+### `src/routes/chat.routes.ts`
+Protege todas las rutas con autenticación y aplica `chatLimiter` y `validate(SendMessageSchema)` en el endpoint de mensajes:
+```typescript
+router.post('/:id/messages', chatLimiter, validate(SendMessageSchema), sendMessage)
+```
+
+---
+
+## Punto de Entrada de la App y Servidor
+
+### `src/app.ts`
+Configura Express con la pila de middlewares globales de seguridad:
+- `helmet()`: Cabeceras de protección HTTP.
+- `cors()`: Configurado con `origin: env.frontendUrl` y `credentials: true`.
+- `express.json({ limit: '10kb' })`: Limita el tamaño del payload JSON para prevenir DoS.
+- `cookieParser()`: Habilita el parseo de cookies para refresh tokens.
+- Rutas: `/health` y `/api/v1`.
+- `errorHandler`: Middleware final para atrapar errores.
+
+### `src/server.ts`
+Verifica la conexión a PostgreSQL con `prisma.$connect()` antes de escuchar peticiones en el puerto asignado.
+
+---
+
+## Esquema de Base de Datos y pgvector (`prisma/schema.prisma`)
+
+```prisma
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+```
+
+### Modelos y Definición Vectorial
+
+- **`DocumentChunk`**:
+  ```prisma
+  model DocumentChunk {
+    id         String   @id @default(uuid())
+    documentId String   @map("document_id")
+    chunkIndex Int      @map("chunk_index")
+    content    String
+    tokens     Int      @default(0)
+    embedding  Unsupported("vector(768)")?
+    createdAt  DateTime @default(now()) @map("created_at")
+    document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+    sourceReferences SourceReference[]
+    @@map("document_chunks")
+  }
+  ```
+  La columna `embedding` utiliza el tipo nativo `vector(768)` provisto por la extensión `pgvector` en PostgreSQL.
+
+- **`SourceReference`**:
+  Almacena la trazabilidad de cada respuesta del asistente:
+  ```prisma
+  model SourceReference {
+    id              String   @id @default(uuid())
+    messageId       String   @map("message_id")
+    chunkId         String   @map("chunk_id")
+    similarityScore Decimal? @map("similarity_score")
+    message         Message       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+    chunk           DocumentChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+    @@map("source_references")
+  }
   ```
 
 ---
 
-### `src/routes/auth.routes.ts`
+## Diagramas de Flujo Detallados
 
-**Propósito**: Define las rutas específicas de autenticación y les aplica los middlewares correspondientes.
+### 1. Diagrama de Autenticación y Rotación de Tokens
 
-```typescript
-const router = Router()
-
-router.post('/register', validate(registerSchema), registerLimiter, register)
-router.post('/login',    validate(loginSchema),    LoginLimiter,    login)
-router.post('/refresh',  refreshLimiter,            refresh)
-router.get('/me',        authenticate,              me)
-router.post('/logout',   authenticate,              logout)
 ```
-
-| Ruta             | Método | Middlewares                                    | Controlador | Auth requerida |
-|------------------|--------|------------------------------------------------|-------------|----------------|
-| `/register`      | POST   | `validate(registerSchema)` → `registerLimiter` | `register`  | ❌             |
-| `/login`         | POST   | `validate(loginSchema)` → `LoginLimiter`       | `login`     | ❌             |
-| `/refresh`       | POST   | `refreshLimiter`                               | `refresh`   | ❌ (usa cookie) |
-| `/me`            | GET    | `authenticate`                                 | `me`        | ✅ (Bearer JWT) |
-| `/logout`        | POST   | `authenticate`                                 | `logout`    | ✅ (Bearer JWT) |
-
-**Orden de middlewares**: Cada request pasa por los middlewares de izquierda a derecha. Si uno falla, los siguientes no se ejecutan.
+Cliente                           Servidor (Auth)                    PostgreSQL
+   │                                     │                               │
+   │── POST /api/v1/auth/login ─────────>│                               │
+   │   { email, password }               │── Busca usuario por email ───>│
+   │                                     │<── Retorna user + hash ───────│
+   │                                     │── Compara hash (bcrypt)       │
+   │                                     │── Genera AccessToken (JWT)    │
+   │                                     │── Genera RefreshToken opaco   │
+   │                                     │── Guarda hash SHA-256 ───────>│
+   │<── 200 OK (AccessToken en body + ───│                               │
+   │    Cookie HttpOnly refreshToken)    │                               │
+   │                                     │                               │
+   │── POST /api/v1/auth/refresh ───────>│ (Con Cookie refreshToken)     │
+   │                                     │── Busca hash en DB ──────────>│
+   │                                     │<── Token válido y no expirado─│
+   │                                     │── Borra RefreshToken usado ──>│
+   │                                     │── Genera nuevo par de tokens  │
+   │                                     │── Inserta nuevo hash ────────>│
+   │<── 200 OK (Nuevo AccessToken + ─────│                               │
+   │    Nueva Cookie refreshToken)       │                               │
+```
 
 ---
 
-## Punto de Entrada de la App
+### 2. Diagrama del Pipeline de Procesamiento RAG
 
-### `src/app.ts`
-
-**Propósito**: Crea y configura la aplicación Express con todos los middlewares globales.
-
-```typescript
-const app = express()
-
-// === Middlewares de seguridad y parsing ===
-app.use(helmet())                                              // Cabeceras de seguridad
-app.use(cors({ origin: env.frontendUrl, credentials: true }))  // CORS configurado
-app.use(express.json({ limit: '10kb' }))                       // Parsea JSON (max 10kb)
-app.use(express.urlencoded({ extended: true }))                // Parsea form data
-app.use(cookieParser())                                        // Parsea cookies
-
-// === Health Check ===
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timeStamp: new Date().toISOString() })
-})
-
-// === Rutas de la API ===
-app.use('/api/v1', router)
-
-// === Error Handler global ===
-app.use(errorHandler)
 ```
-
-> **⚠️ Bug detectado en import**: En la línea 3 del archivo original, `helmet` se importa desde `'cookie-parser'` en lugar de desde `'helmet'`. Esto causa que `helmet()` en realidad ejecute `cookieParser()` dos veces en lugar de aplicar las cabeceras de seguridad de helmet.
-
-- **`express.json({ limit: '10kb' })`**: Limita el tamaño del body JSON a 10KB para prevenir ataques de payload grande.
-- **`cors({ origin: env.frontendUrl, credentials: true })`**: Solo acepta requests del frontend configurado y permite envío de cookies.
-- **Health check**: Endpoint simple en `/health` (fuera de `/api/v1`) para monitoreo/balanceadores de carga.
+Cliente                           Document Controller            RAG Service               Gemini API / DB
+   │                                       │                          │                           │
+   │── POST /api/v1/documents ────────────>│                          │                           │
+   │   (multipart/form-data: archivo)      │                          │                           │
+   │                                       │── Multer guarda en disco │                           │
+   │                                       │── Inserta en tabla docs  │                           │
+   │                                       │   (status: 'uploaded')   │                           │
+   │                                       │                          │                           │
+   │                                       │── Dispara en segundo ───>│                           │
+   │                                       │   plano processDocument()│                           │
+   │<── 201 Created (Inmediato) ───────────│                          │                           │
+   │                                                                  │                           │
+   │                                                                  │── Extrae texto (pdf-parse)│
+   │                                                                  │── splitTextIntoChunks()   │
+   │                                                                  │   (1000 chars, 200 ovlp)  │
+   │                                                                  │                           │
+   │                                                                  │── Bucle por cada chunk:   │
+   │                                                                  │   │── getEmbedding() ────>│ (Gemini API)
+   │                                                                  │   │<── vector 768dim ─────│
+   │                                                                  │   │                       │
+   │                                                                  │   └── INSERT SQL Raw ────>│ (PostgreSQL
+   │                                                                  │       (::vector cast)     │  pgvector)
+   │                                                                  │                           │
+   │                                                                  │── UPDATE document         │
+   │                                                                  │   status = 'processed' ──>│
+```
 
 ---
 
-## Servidor
-
-### `src/server.ts`
-
-**Propósito**: Punto de entrada de la aplicación. Conecta a la base de datos y arranca el servidor HTTP.
-
-```typescript
-async function main() {
-    try {
-        await prisma.$connect();                           // Establece conexión a PostgreSQL
-        console.log('Conectado a la base de datos');
-        app.listen(env.port, () => {                       // Inicia servidor HTTP
-            console.log(`Server en http://localhost:${env.port}`);
-            console.log(`API en http://localhost:${env.port}/api/v1`);
-        });
-    } catch (error) {
-        console.error('Error al arrancar:', error);
-        await prisma.$disconnect();                        // Cierra conexión limpiamente
-        process.exit(1);                                   // Termina el proceso con error
-    }
-}
-
-main();
-```
-
-- **Flujo**:
-  1. `prisma.$connect()` establece la conexión a PostgreSQL. Si falla (credenciales incorrectas, DB no disponible), lanza un error.
-  2. `app.listen()` arranca el servidor HTTP en el puerto configurado.
-  3. Si algo falla, desconecta Prisma y termina el proceso con código de error `1`.
-
----
-
-## Esquema de Base de Datos
-
-### `prisma/schema.prisma`
-
-Define 7 modelos (tablas) con sus relaciones:
+### 3. Diagrama de Consulta en el Chat y Respuesta RAG
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌────────────────┐
-│    User      │────<│ RefreshToken │     │   AuditLog     │
-│             │     └──────────────┘     └────────────────┘
-│  id (UUID)  │                                │
-│  email      │────<──────────────────────────────
-│  passwordHash│
-│  createdAt  │────<┌──────────────┐     ┌──────────────────┐
-│  updatedAt  │     │   Document   │────<│ DocumentChunk    │
-└─────────────┘     │              │     │                  │────<┌──────────────────┐
-       │            │  filename    │     │  content         │     │ SourceReference  │
-       │            │  storagePath │     │  chunkIndex      │     │                  │
-       │            │  status      │     │  tokens          │     │  similarityScore │
-       │            └──────────────┘     └──────────────────┘     └──────────────────┘
-       │                                                                 │
-       └────<┌──────────────┐     ┌──────────────┐                      │
-             │    Chat      │────<│   Message    │─────────────────────────
-             │              │     │              │
-             │  title       │     │  role        │
-             │  createdAt   │     │  content     │
-             └──────────────┘     └──────────────┘
-```
-
-#### Modelos:
-
-| Modelo            | Tabla              | Propósito                                           |
-|-------------------|--------------------|-----------------------------------------------------|
-| **User**          | `users`            | Usuarios del sistema                                |
-| **RefreshToken**  | `refresh_tokens`   | Tokens de refresco para sesiones persistentes       |
-| **Document**      | `documents`        | Documentos subidos por el usuario                    |
-| **DocumentChunk** | `document_chunks`  | Fragmentos de texto de los documentos (para RAG)     |
-| **Chat**          | `chats`            | Conversaciones de chat del usuario                   |
-| **Message**       | `messages`         | Mensajes individuales dentro de un chat              |
-| **SourceReference** | `source_references` | Referencias a chunks usados como fuente en respuestas |
-| **AuditLog**      | `audit_logs`       | Log de auditoría de acciones del usuario             |
-
-#### Relaciones clave:
-- `User` → tiene muchos `Document`, `Chat`, `RefreshToken`, `AuditLog`
-- `Document` → tiene muchos `DocumentChunk`
-- `Chat` → tiene muchos `Message`
-- `Message` → tiene muchos `SourceReference`
-- `DocumentChunk` → tiene muchos `SourceReference`
-- Todas las relaciones usan `onDelete: Cascade` (si se borra un usuario, se borran todos sus datos).
-
----
-
-## Diagrama de Flujo de Autenticación
-
-### Registro
-```
-Cliente                          Servidor                        Base de Datos
-  │                                │                                │
-  │── POST /auth/register ────────>│                                │
-  │   { email, password }          │                                │
-  │                                │── validate(registerSchema) ──> │
-  │                                │── registerLimiter ──────────>  │
-  │                                │── busca email existente ──────>│
-  │                                │<── null (no existe) ──────────│
-  │                                │── bcrypt.hash(password, 12) ──>│
-  │                                │── INSERT user ────────────────>│
-  │<── 201 { success: true } ─────│                                │
-```
-
-### Login
-```
-Cliente                          Servidor                        Base de Datos
-  │                                │                                │
-  │── POST /auth/login ──────────>│                                │
-  │   { email, password }          │                                │
-  │                                │── validate(loginSchema) ─────>│
-  │                                │── LoginLimiter ──────────────>│
-  │                                │── busca usuario por email ───>│
-  │                                │<── user ─────────────────────│
-  │                                │── bcrypt.compare() ──────────>│
-  │                                │── generateAccessToken() ─────>│
-  │                                │── createRefreshToken() ──────>│
-  │                                │── INSERT refresh_token ──────>│
-  │<── 200 { accessToken, user } ──│                                │
-  │   + Cookie: refreshToken       │                                │
-```
-
-### Refresh Token (Rotación)
-```
-Cliente                          Servidor                        Base de Datos
-  │                                │                                │
-  │── POST /auth/refresh ────────>│                                │
-  │   Cookie: refreshToken         │                                │
-  │                                │── sha256(token) ─────────────>│
-  │                                │── busca hash + no expirado ──>│
-  │                                │<── stored token + user ──────│
-  │                                │── DELETE token viejo ────────>│
-  │                                │── generateAccessToken() ─────>│
-  │                                │── createRefreshToken() ──────>│
-  │                                │── INSERT nuevo refresh ──────>│
-  │<── 200 { accessToken } ───────│                                │
-  │   + Cookie: nuevo refreshToken │                                │
+Cliente                         Chat Controller                  RAG & Gemini Service               PostgreSQL (pgvector)
+   │                                   │                                  │                                  │
+   │── POST /chats/:id/messages ──────>│                                  │                                  │
+   │   { content: "¿Cómo...?" }        │                                  │                                  │
+   │                                   │── Guarda User Message ───────────┼─────────────────────────────────>│
+   │                                   │                                  │                                  │
+   │                                   │── 1. geminiService.getEmbedding->│                                  │
+   │                                   │      de la pregunta              │── Llama a Gemini Embedding ─────>│
+   │                                   │<─────────────────────────────────│   (Retorna vector 768dim)        │
+   │                                   │                                  │                                  │
+   │                                   │── 2. ragService.searchSimilar───>│                                  │
+   │                                   │      Chunks(queryVector, 5)      │── SELECT ... ORDER BY ──────────>│
+   │                                   │                                  │   embedding <=> vector LIMIT 5   │
+   │                                   │<─────────────────────────────────│<── 5 chunks más relevantes ──────│
+   │                                   │                                  │                                  │
+   │                                   │── 3. Construye prompt context    │                                  │
+   │                                   │── 4. geminiService.generate─────>│                                  │
+   │                                   │      ChatResponse(prompt, context)── LLM (gemini-3.5-flash-lite)──>│
+   │                                   │<─────────────────────────────────│<── Respuesta generada ───────────│
+   │                                   │                                  │                                  │
+   │                                   │── 5. Guarda Assistant Message ───┼─────────────────────────────────>│
+   │                                   │── 6. Guarda Source References ───┼─────────────────────────────────>│
+   │                                   │── 7. Actualiza updatedAt chat ───┼─────────────────────────────────>│
+   │                                   │                                  │                                  │
+   │<── 201 Created (User Message + ───│                                  │                                  │
+   │    Assistant Message con RAG)     │                                  │                                  │
 ```
