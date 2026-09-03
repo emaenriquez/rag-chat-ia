@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login, refresh, me, logout } from '../controller/authController'
+import { register, login, refresh, me, logout } from '../controller/authController.js'
 import { authenticate } from '../middleware/autheticate.js'
 import { validate } from '../middleware/validate.js'
 import { LoginLimiter, registerLimiter, refreshLimiter } from '../middleware/rateLimit.js'
