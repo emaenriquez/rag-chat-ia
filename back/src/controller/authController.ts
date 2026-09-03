@@ -115,6 +115,10 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
         const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
         await prisma.refreshToken.deleteMany({ where: { tokenHash } })
     }
-    res.clearCookie('refreshToken')
+    res.clearCookie('refreshToken', {
+        httpOnly: COOKIE_OPTIONS.httpOnly,
+        secure: COOKIE_OPTIONS.secure,
+        sameSite: COOKIE_OPTIONS.sameSite
+    })
     res.json({ success: true, message: 'sesion cerrada' })
 }
