@@ -111,7 +111,7 @@ export const listDocuments = async (req: Request, res: Response): Promise<void> 
 // GET /api/v1/documents/:id
 // Obtener detalle de un documento
 // ─────────────────────────────────────────────
-export const getDocument = async (req: Request, res: Response): Promise<void> => {
+export const getDocument = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
     const { id } = req.params
     const userId = req.user!.sub
 
@@ -153,7 +153,7 @@ export const getDocument = async (req: Request, res: Response): Promise<void> =>
 // DELETE /api/v1/documents/:id
 // Eliminar documento + archivo físico del disco
 // ─────────────────────────────────────────────
-export const deleteDocument = async (req: Request, res: Response): Promise<void> => {
+export const deleteDocument = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
     const { id } = req.params
     const userId = req.user!.sub
 
@@ -186,7 +186,7 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
 // POST /api/v1/documents/:id/reprocess
 // Marcar documento para reprocesar pipeline RAG
 // ─────────────────────────────────────────────
-export const reprocessDocument = async (req: Request, res: Response): Promise<void> => {
+export const reprocessDocument = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
     const { id } = req.params
     const userId = req.user!.sub
 

@@ -47,7 +47,7 @@ export const ragService = {
 
         if (!document) {
             console.error(`[RAG Pipeline] Error: Documento ${documentId} no encontrado en la base de datos.`);
-            throw new Error('Document not found');
+            throw new Error('Documento no encontrado en la base de datos');
         }
 
         try {

@@ -7,7 +7,7 @@ import {
     reprocessDocument,
 } from '../controller/documentController.js'
 import { authenticate } from '../middleware/autheticate.js'
-import { upload, hadleUploadError } from '../middleware/uploadMiddleware.js'
+import { upload, handleUploadError } from '../middleware/uploadMiddleware.js'
 
 const router = Router()
 
@@ -15,7 +15,7 @@ const router = Router()
 router.use(authenticate)
 
 // Upload: primero multer procesa el archivo, luego el controller
-router.post('/', upload.single('file'), hadleUploadError, uploadDocument)
+router.post('/', upload.single('file'), handleUploadError, uploadDocument)
 
 // CRUD básico
 router.get('/', listDocuments)

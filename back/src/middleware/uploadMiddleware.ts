@@ -4,7 +4,6 @@ import { v4 as uuid } from 'uuid'
 import { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES } from '../models/document.schema.js'
 import { env } from '../config/env.js'
 import { Request, Response, NextFunction } from 'express'
-import { unknown } from 'zod'
 
 // Configuración de dónde y cómo guardar los archivos
 const storage = multer.diskStorage({
@@ -45,7 +44,7 @@ export const upload = multer({
     }
 })
 
-export const hadleUploadError = (
+export const handleUploadError = (
     err: unknown,
     req: Request,
     res: Response,

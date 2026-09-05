@@ -41,7 +41,7 @@ export const listChats = async (req: Request, res: Response): Promise<void> => {
 }
 
 // GET /api/v1/chats/:id
-export const getChat = async (req: Request, res: Response): Promise<void> => {
+export const getChat = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
     const { id } = req.params
     const userId = req.user!.sub
 
@@ -69,7 +69,7 @@ export const getChat = async (req: Request, res: Response): Promise<void> => {
 }
 
 // DELETE /api/v1/chats/:id
-export const deleteChat = async (req: Request, res: Response): Promise<void> => {
+export const deleteChat = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
     const { id } = req.params
     const userId = req.user!.sub
 
@@ -90,7 +90,7 @@ export const deleteChat = async (req: Request, res: Response): Promise<void> => 
 }
 
 // POST /api/v1/chats/:id/messages
-export const sendMessage = async (req: Request, res: Response): Promise<void> => {
+export const sendMessage = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
     const { id } = req.params
     const userId = req.user!.sub
     const { content } = req.body
@@ -127,14 +127,19 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
         // 4. Buscar fragmentos relevantes en la base de datos (Top 5)
         similarChunks = await ragService.searchSimilarChunks(queryEmbedding, 5)
 
-        // Construir el contexto uniendo los fragmentos
-        const contextText = similarChunks.map(c => c.content).join('\n\n---\n\n')
+        if (similarChunks.length === 0) {
+            // Cortocircuito: sin contexto no tiene sentido llamar al modelo
+            assistantContent = 'Lo siento, esa información no se encuentra en los archivos cargados.'
+        } else {
+            // Construir el contexto uniendo los fragmentos
+            const contextText = similarChunks.map(c => c.content).join('\n\n---\n\n')
 
-        // 5. Generar la respuesta usando Gemini
-        assistantContent = await geminiService.generateChatResponse(content, contextText)
+            // 5. Generar la respuesta usando Gemini
+            assistantContent = await geminiService.generateChatResponse(content, contextText)
+        }
 
     } catch (error: any) {
-        console.error('Error in RAG pipeline:', error)
+        console.error('[Chat] Error en el pipeline RAG:', error)
         assistantContent = 'Lo siento, ocurrió un error al procesar tu mensaje. Por favor intenta nuevamente.'
     }
 
