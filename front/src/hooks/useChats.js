@@ -21,8 +21,8 @@ export function useChats() {
     fetchChats()
   }, [fetchChats])
 
-  const createChat = useCallback(async (title) => {
-    const data = await chatService.create(title)
+  const createChat = useCallback(async (title, documentIds) => {
+    const data = await chatService.create(title, documentIds)
     setChats((prev) => [data.chat, ...prev])
     return data.chat
   }, [])

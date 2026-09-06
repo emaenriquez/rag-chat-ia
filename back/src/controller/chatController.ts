@@ -4,18 +4,53 @@ import { prisma } from '../config/database.js'
 // POST /api/v1/chats
 export const createChat = async (req: Request, res: Response): Promise<void> => {
     const userId = req.user!.sub
-    const { title } = req.body
+    const { title, documentIds } = req.body
+
+    // Si se enviaron documentIds, validar que pertenezcan al usuario y estén procesados
+    if (documentIds && Array.isArray(documentIds) && documentIds.length > 0) {
+        const validDocs = await prisma.document.findMany({
+            where: {
+                id: { in: documentIds },
+                userId,
+                status: 'processed'
+            },
+            select: { id: true }
+        })
+
+        if (validDocs.length !== documentIds.length) {
+            res.status(400).json({
+                success: false,
+                message: 'Uno o más documentos seleccionados no existen, no te pertenecen o aún no están procesados'
+            })
+            return
+        }
+    }
 
     const chat = await prisma.chat.create({
         data: {
             userId,
-            title: title || 'Nuevo Chat'
+            title: title || 'Nuevo Chat',
+            ...(documentIds && Array.isArray(documentIds) && documentIds.length > 0 ? {
+                chatDocuments: {
+                    create: documentIds.map((docId: string) => ({
+                        documentId: docId
+                    }))
+                }
+            } : {})
         },
-        select: {
-            id: true,
-            title: true,
-            createdAt: true,
-            updatedAt: true
+        include: {
+            chatDocuments: {
+                include: {
+                    document: {
+                        select: {
+                            id: true,
+                            originalName: true,
+                            status: true,
+                            mimeType: true
+                        }
+                    }
+                }
+            }
         }
     })
 
@@ -28,11 +63,23 @@ export const listChats = async (req: Request, res: Response): Promise<void> => {
 
     const chats = await prisma.chat.findMany({
         where: { userId },
-        select: {
-            id: true,
-            title: true,
-            createdAt: true,
-            updatedAt: true
+        include: {
+            chatDocuments: {
+                include: {
+                    document: {
+                        select: {
+                            id: true,
+                            originalName: true
+                        }
+                    }
+                }
+            },
+            _count: {
+                select: {
+                    messages: true,
+                    chatDocuments: true
+                }
+            }
         },
         orderBy: { updatedAt: 'desc' }
     })
@@ -48,6 +95,18 @@ export const getChat = async (req: Request<{ id: string }>, res: Response): Prom
     const chat = await prisma.chat.findFirst({
         where: { id, userId },
         include: {
+            chatDocuments: {
+                include: {
+                    document: {
+                        select: {
+                            id: true,
+                            originalName: true,
+                            status: true,
+                            mimeType: true
+                        }
+                    }
+                }
+            },
             messages: {
                 orderBy: { createdAt: 'asc' },
                 select: {
@@ -66,6 +125,84 @@ export const getChat = async (req: Request<{ id: string }>, res: Response): Prom
     }
 
     res.json({ success: true, chat })
+}
+
+// PUT /api/v1/chats/:id/sources
+// Actualizar las fuentes (documentos) asignadas a un chat
+export const updateChatSources = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+    const { id } = req.params
+    const userId = req.user!.sub
+    const { documentIds } = req.body
+
+    if (!Array.isArray(documentIds)) {
+        res.status(400).json({ success: false, message: 'documentIds debe ser un array de identificadores' })
+        return
+    }
+
+    // 1. Verificar que el chat existe y pertenece al usuario
+    const chat = await prisma.chat.findFirst({
+        where: { id, userId }
+    })
+
+    if (!chat) {
+        res.status(404).json({ success: false, message: 'Chat no encontrado' })
+        return
+    }
+
+    // 2. Si hay documentos seleccionados, validar que pertenezcan al usuario y estén procesados
+    if (documentIds.length > 0) {
+        const validDocs = await prisma.document.findMany({
+            where: {
+                id: { in: documentIds },
+                userId,
+                status: 'processed'
+            },
+            select: { id: true }
+        })
+
+        if (validDocs.length !== documentIds.length) {
+            res.status(400).json({
+                success: false,
+                message: 'Uno o más documentos no son válidos o aún no terminaron de procesarse'
+            })
+            return
+        }
+    }
+
+    // 3. Reemplazar asociaciones existentes en una transacción
+    await prisma.$transaction([
+        prisma.chatDocument.deleteMany({
+            where: { chatId: id }
+        }),
+        ...(documentIds.length > 0 ? [
+            prisma.chatDocument.createMany({
+                data: documentIds.map((docId: string) => ({
+                    chatId: id,
+                    documentId: docId
+                }))
+            })
+        ] : [])
+    ])
+
+    const updatedChat = await prisma.chat.findUnique({
+        where: { id },
+        include: {
+            chatDocuments: {
+                include: {
+                    document: {
+                        select: {
+                            id: true,
+                            originalName: true,
+                            status: true,
+                            mimeType: true
+                        }
+                    }
+                }
+            }
+        }
+    })
+
+    res.json({ success: true, chat: updatedChat })
 }
 
 // DELETE /api/v1/chats/:id
@@ -95,9 +232,12 @@ export const sendMessage = async (req: Request<{ id: string }>, res: Response): 
     const userId = req.user!.sub
     const { content } = req.body
 
-    // 1. Verificar que el chat existe y pertenece al usuario
+    // 1. Verificar que el chat existe y pertenece al usuario, obteniendo sus fuentes vinculadas
     const chat = await prisma.chat.findFirst({
-        where: { id, userId }
+        where: { id, userId },
+        include: {
+            chatDocuments: true
+        }
     })
 
     if (!chat) {
@@ -121,15 +261,24 @@ export const sendMessage = async (req: Request<{ id: string }>, res: Response): 
     let assistantContent = ''
     let similarChunks = []
 
+    const selectedDocIds = chat.chatDocuments.map(cd => cd.documentId)
+
     try {
         const queryEmbedding = await geminiService.getEmbedding(content)
 
-        // 4. Buscar fragmentos relevantes en la base de datos (Top 5)
-        similarChunks = await ragService.searchSimilarChunks(queryEmbedding, 5)
+        // 4. Buscar fragmentos relevantes filtrando por los documentos seleccionados (si los hay) y el usuario
+        similarChunks = await ragService.searchSimilarChunks(
+            queryEmbedding,
+            5,
+            selectedDocIds.length > 0 ? selectedDocIds : undefined,
+            userId
+        )
 
         if (similarChunks.length === 0) {
             // Cortocircuito: sin contexto no tiene sentido llamar al modelo
-            assistantContent = 'Lo siento, esa información no se encuentra en los archivos cargados.'
+            assistantContent = selectedDocIds.length > 0
+                ? 'Lo siento, esa información no se encuentra en los archivos seleccionados para este chat.'
+                : 'Lo siento, esa información no se encuentra en los archivos cargados.'
         } else {
             // Construir el contexto uniendo los fragmentos
             const contextText = similarChunks.map(c => c.content).join('\n\n---\n\n')

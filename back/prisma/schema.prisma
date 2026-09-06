@@ -42,8 +42,9 @@ model Document {
   status       String   @default("uploaded")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
-  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chunks DocumentChunk[]
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunks        DocumentChunk[]
+  chatDocuments ChatDocument[]
   @@map("documents")
 }
 
@@ -66,9 +67,21 @@ model Chat {
   title     String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      Message[]
+  chatDocuments ChatDocument[]
   @@map("chats")
+}
+
+model ChatDocument {
+  id         String   @id @default(uuid())
+  chatId     String   @map("chat_id")
+  documentId String   @map("document_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  chat     Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  @@unique([chatId, documentId])
+  @@map("chat_documents")
 }
 
 model Message {

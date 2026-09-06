@@ -119,12 +119,53 @@ export const ragService = {
 
     /**
      * Searches for chunks similar to the query embedding.
+     * Optionally filters by document IDs and user ID.
      */
-    async searchSimilarChunks(queryEmbedding: number[], limit = 5): Promise<any[]> {
+    async searchSimilarChunks(
+        queryEmbedding: number[],
+        limit = 5,
+        documentIds?: string[],
+        userId?: string
+    ): Promise<any[]> {
         const embeddingString = `[${queryEmbedding.join(',')}]`;
 
-        // Perform vector similarity search (cosine distance '<=>')
-        // We order by distance, so smaller is more similar.
+        if (documentIds && documentIds.length > 0) {
+            if (userId) {
+                return await prisma.$queryRaw<any[]>`
+                    SELECT dc.id, dc.document_id, dc.content, 
+                           1 - (dc.embedding <=> ${embeddingString}::vector) as similarity
+                    FROM document_chunks dc
+                    INNER JOIN documents d ON dc.document_id = d.id
+                    WHERE d.user_id = ${userId}
+                      AND dc.document_id = ANY(${documentIds}::text[])
+                    ORDER BY dc.embedding <=> ${embeddingString}::vector
+                    LIMIT ${limit}
+                `;
+            } else {
+                return await prisma.$queryRaw<any[]>`
+                    SELECT dc.id, dc.document_id, dc.content, 
+                           1 - (dc.embedding <=> ${embeddingString}::vector) as similarity
+                    FROM document_chunks dc
+                    WHERE dc.document_id = ANY(${documentIds}::text[])
+                    ORDER BY dc.embedding <=> ${embeddingString}::vector
+                    LIMIT ${limit}
+                `;
+            }
+        }
+
+        if (userId) {
+            return await prisma.$queryRaw<any[]>`
+                SELECT dc.id, dc.document_id, dc.content, 
+                       1 - (dc.embedding <=> ${embeddingString}::vector) as similarity
+                FROM document_chunks dc
+                INNER JOIN documents d ON dc.document_id = d.id
+                WHERE d.user_id = ${userId}
+                ORDER BY dc.embedding <=> ${embeddingString}::vector
+                LIMIT ${limit}
+            `;
+        }
+
+        // Fallback if no userId or documentIds (backward-compatible)
         const results = await prisma.$queryRaw<any[]>`
             SELECT id, document_id, content, 
                    1 - (embedding <=> ${embeddingString}::vector) as similarity
