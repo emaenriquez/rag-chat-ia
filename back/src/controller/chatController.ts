@@ -171,9 +171,26 @@ export const sendMessage = async (req: Request<{ id: string }>, res: Response): 
         data: { updatedAt: new Date() }
     })
 
+    // 9. Obtener nombres de documentos fuente
+    const sourceDocIds = [...new Set(similarChunks.map(c => c.document_id))]
+    let sources: { id: string; name: string; similarity: number }[] = []
+    if (sourceDocIds.length > 0) {
+        const docs = await prisma.document.findMany({
+            where: { id: { in: sourceDocIds } },
+            select: { id: true, originalName: true }
+        })
+        const docMap = Object.fromEntries(docs.map(d => [d.id, d.originalName]))
+        sources = similarChunks.map(c => ({
+            id: c.document_id,
+            name: docMap[c.document_id] || 'Desconocido',
+            similarity: Number(c.similarity)
+        }))
+    }
+
     res.status(201).json({
         success: true,
         userMessage,
-        assistantMessage
+        assistantMessage,
+        sources
     })
 }
