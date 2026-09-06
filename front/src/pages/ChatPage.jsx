@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useChats } from '../hooks/useChats'
 import { useChat } from '../hooks/useChat'
+import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { Sidebar } from '../components/Layout/Sidebar'
 import { MessageBubble } from '../components/Chat/MessageBubble'
 import { MessageInput } from '../components/Chat/MessageInput'
@@ -13,19 +15,36 @@ import { ConfirmModal } from '../components/ui/ConfirmModal'
 export function ChatPage() {
   const { chatId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const { chats, loading: chatsLoading, createChat, deleteChat } = useChats()
   const { chat, messages, sources, loading: chatLoading, sending, sendMessage, updateSources } = useChat(chatId)
   const bottomRef = useRef(null)
 
-  // Modal states
+  // Estados de modales y mobile
   const [showNewChat, setShowNewChat] = useState(false)
   const [showManageSources, setShowManageSources] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState(null) // chatId to delete
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
-  // Auto-scroll on new messages
+  // Texto del prompt central cuando no hay mensajes
+  const [heroPrompt, setHeroPrompt] = useState('')
+
+  // Saludo dinámico según la hora
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    const name = user?.email ? user.email.split('@')[0] : ''
+    const formattedName = name ? name.charAt(0).toUpperCase() + name.slice(1) : ''
+    
+    if (hour < 12) return formattedName ? `Buenos días, ${formattedName}` : 'Buenos días'
+    if (hour < 20) return formattedName ? `Buenas tardes, ${formattedName}` : 'Buenas tardes'
+    return formattedName ? `Buenas noches, ${formattedName}` : 'Buenas noches'
+  }
+
+  // Auto-scroll en nuevos mensajes
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, sending])
 
   const handleNewChat = () => setShowNewChat(true)
 
@@ -35,7 +54,10 @@ export function ChatPage() {
     navigate(`/chats/${newChat.id}`)
   }
 
-  const handleSelectChat = (id) => navigate(`/chats/${id}`)
+  const handleSelectChat = (id) => {
+    navigate(`/chats/${id}`)
+    setMobileSidebarOpen(false)
+  }
 
   const handleRequestDelete = (id) => setDeleteTarget(id)
 
@@ -47,11 +69,21 @@ export function ChatPage() {
   }
 
   const handleSend = async (content) => {
+    if (!content.trim()) return
+
     if (!chatId) {
-      // Si no hay chat activo, abrir el modal de nuevo chat
-      setShowNewChat(true)
+      // Si no hay chat activo, crear uno automáticamente y enviar el mensaje
+      const newChat = await createChat(content.slice(0, 30) || 'Nuevo Chat')
+      navigate(`/chats/${newChat.id}`)
+      // Esperar brevemente a que el hook monte el nuevo chat y enviar
+      setTimeout(async () => {
+        try {
+          await sendMessage(content)
+        } catch {}
+      }, 300)
       return
     }
+
     await sendMessage(content)
   }
 
@@ -59,13 +91,29 @@ export function ChatPage() {
   const configuredDocs = chat?.chatDocuments?.map((cd) => cd.document).filter(Boolean) || []
   const configuredDocIds = configuredDocs.map((d) => d.id)
 
-  // Deduplicar fuentes referenciadas en la última respuesta
-  const uniqueSources = sources.length
-    ? [...new Map(sources.map((s) => [s.id, s])).values()]
-    : []
+  // // Sugerencias de prompt (estilo pills de Image 1 & 2)
+  // const SUGGESTIONS = [
+  //   { label: 'Resumir documento', icon: '📄', prompt: 'Genera un resumen ejecutivo destacando los puntos clave de los documentos.' },
+  //   { label: 'Búsqueda profunda', icon: '🔍', prompt: '¿Cuáles son los principales hallazgos, fechas y datos relevantes en los archivos?' },
+  //   { label: 'Extraer datos clave', icon: '📊', prompt: 'Extrae una lista de datos numéricos, métricas y conclusiones importantes.' },
+  //   { label: 'Redactar reporte', icon: '✍️', prompt: 'Redacta un informe estructurado basado en la información disponible.' },
+  // ]
+
+  const handleHeroSubmit = async (e) => {
+    e?.preventDefault()
+    const promptToSend = heroPrompt.trim()
+    if (!promptToSend) return
+    setHeroPrompt('')
+    await handleSend(promptToSend)
+  }
+
+  const handleApplySuggestion = (suggestionPrompt) => {
+    setHeroPrompt(suggestionPrompt)
+  }
 
   return (
-    <div className="flex h-screen bg-slate-950">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#fbfbfa] dark:bg-[#131315] text-zinc-900 dark:text-zinc-100 font-sans transition-colors duration-200">
+      {/* Barra lateral */}
       <Sidebar
         chats={chats}
         activeChatId={chatId}
@@ -73,160 +121,197 @@ export function ChatPage() {
         onDeleteChat={handleRequestDelete}
         onNewChat={handleNewChat}
         chatsLoading={chatsLoading}
+        isMobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
-      {/* Main area */}
-      <main className="flex flex-1 flex-col overflow-hidden">
-        {chatId && (
-          /* Header del chat con fuentes activas */
-          <div className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-xs px-6 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-600/20 text-violet-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                  </svg>
-                </div>
+      {/* Área principal */}
+      <main className="flex flex-1 flex-col h-full min-w-0 overflow-hidden relative">
+        {/* Barra superior de navegación / estado */}
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-200/70 dark:border-zinc-800/60 px-4 md:px-6 bg-white/70 dark:bg-[#161619]/60 backdrop-blur-md z-10">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Botón menú mobile */}
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="flex md:hidden h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+
+            {chatId ? (
+              <div className="flex items-center gap-2.5 min-w-0">
                 <div className="flex flex-col min-w-0">
-                  <h2 className="text-sm font-semibold text-slate-100 truncate">
+                  <h2 className="text-xs md:text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
                     {chat?.title || 'Nuevo Chat'}
                   </h2>
-                  <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] text-slate-400">
-                    <span className="shrink-0 text-slate-500">Fuentes:</span>
+                  <div className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500">
+                    <span>Fuentes:</span>
                     {configuredDocs.length > 0 ? (
-                      <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-                        {configuredDocs.map((doc) => (
-                          <span
-                            key={doc.id}
-                            className="inline-flex items-center gap-1 rounded-md bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 font-medium text-violet-300 shrink-0"
-                            title={doc.originalName}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-violet-400" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                            </svg>
-                            <span className="max-w-[130px] truncate">{doc.originalName}</span>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-slate-800 border border-slate-700 px-2 py-0.5 font-medium text-slate-300">
-                        <span>🌐</span> Todas tus fuentes
+                      <span className="truncate max-w-[200px] text-zinc-600 dark:text-zinc-300 font-mono">
+                        {configuredDocs.map((d) => d.originalName).join(', ')}
                       </span>
+                    ) : (
+                      <span className="text-zinc-500 dark:text-zinc-400 font-mono">Todas</span>
                     )}
                   </div>
                 </div>
+
+                {/* <button
+                  onClick={() => setShowManageSources(true)}
+                  className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-zinc-200 dark:border-zinc-700/80 bg-zinc-50 dark:bg-zinc-800/60 px-2 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Editar fuentes
+                </button> */}
               </div>
-
-              {/* Botón para gestionar fuentes */}
-              <button
-                onClick={() => setShowManageSources(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-violet-500/50 hover:bg-slate-700/90 hover:text-violet-200 transition-all shrink-0"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-violet-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                </svg>
-                <span>Editar fuentes</span>
-              </button>
-            </div>
-
-            {/* Si la última respuesta citó fuentes, las mostramos */}
-            {uniqueSources.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center gap-2">
-                <span className="text-[11px] text-slate-500">Citas de la última respuesta:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {uniqueSources.map((s) => (
-                    <span
-                      key={s.id}
-                      className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300"
-                    >
-                      {s.name}
-                    </span>
-                  ))}
-                </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">
+                  RAG Workspace / Inicio
+                </span>
               </div>
             )}
           </div>
-        )}
 
-        {!chatId ? (
-          /* Empty state */
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-600/20">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-violet-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-slate-100">RAG Chat IA</h2>
-            <p className="max-w-md text-center text-sm text-slate-400 leading-relaxed">
-              Inicia una conversación eligiendo las fuentes documentales con las que deseas chatear, o consulta directamente todos tus archivos.
-            </p>
+          {/* Lado derecho superior (estilo Image 1 & 2: Free plan • Upgrade) */}
+          <div className="flex items-center gap-3">
+
+            {/* Quick theme toggle */}
             <button
-              onClick={handleNewChat}
-              className="mt-2 flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-3 text-sm font-medium text-white shadow-lg shadow-violet-600/25 transition-all hover:bg-violet-500 hover:shadow-violet-600/40"
+              onClick={toggleTheme}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              title={`Modo ${theme === 'dark' ? 'claro' : 'oscuro'}`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-              </svg>
-              <span>Crear nuevo chat</span>
+              {theme === 'dark' ? '☀️' : '🌙'}
             </button>
           </div>
+        </header>
+
+        {/* CONTENIDO PRINCIPAL */}
+        {!chatId || (!chatLoading && messages.length === 0) ? (
+          /* ESTADO VACÍO / HERO (COPIA EXACTA DEL MOCKUP IMÁGENES 1 Y 2) */
+          <div className="flex-1 overflow-y-auto px-4 py-8 md:py-16 flex flex-col items-center justify-center">
+            <div className="w-full max-w-2xl mx-auto flex flex-col items-center animate-fade-in">
+              {/* Saludo Editorial en Serif (Good Morning, Mithila) */}
+              <h1 className="text-3xl md:text-5xl font-serif text-zinc-900 dark:text-zinc-100 tracking-tight text-center mb-8 font-normal">
+                {getGreeting()}
+              </h1>
+
+              {/* Caja de Prompt Flotante Central (Double-Bezel Architecture) */}
+              <div className="w-full">
+                <form
+                  onSubmit={handleHeroSubmit}
+                  className="p-1 rounded-[1.75rem] bg-zinc-200/50 dark:bg-zinc-800/40 ring-1 ring-zinc-300/40 dark:ring-white/10 transition-all focus-within:ring-zinc-400 dark:focus-within:ring-zinc-600"
+                >
+                  <div className="rounded-[1.5rem] bg-white dark:bg-[#1f1f23] border border-zinc-200/70 dark:border-white/5 p-4 shadow-xl prompt-card-shadow">
+                    <textarea
+                      value={heroPrompt}
+                      onChange={(e) => setHeroPrompt(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleHeroSubmit(e)
+                        }
+                      }}
+                      placeholder="¿En qué puedo ayudarte hoy?"
+                      rows={2}
+                      className="w-full resize-none bg-transparent px-1 py-1 text-sm md:text-base text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none leading-relaxed"
+                    />
+
+                    {/* Barra de controles interior */}
+                    <div className="flex items-center justify-between pt-3 mt-1 border-t border-zinc-100 dark:border-zinc-800/60">
+                      {/* Botón + para agregar fuentes o crear chat */}
+                      <button
+                        type="button"
+                        onClick={handleNewChat}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        title="Seleccionar fuentes para la consulta"
+                      >
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                      </button>
+
+                      {/* Selector de modo, micrófono y botón circular de enviar */}
+                      <div className="flex items-center gap-2">
+
+
+                        {/* Botón Enviar Circular */}
+                        <button
+                          type="submit"
+                          disabled={!heroPrompt.trim()}
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:scale-100"
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <line x1="12" y1="19" x2="12" y2="5" />
+                            <polyline points="5 12 12 5 19 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
         ) : (
+          /* CONVERSACIÓN ACTIVA */
           <>
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-6">
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
               {chatLoading ? (
                 <div className="flex h-full items-center justify-center">
                   <Spinner size="lg" />
                 </div>
-              ) : messages.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2">
-                  <p className="text-sm text-slate-400">
-                    {configuredDocs.length > 0
-                      ? `Chat listo con ${configuredDocs.length} ${configuredDocs.length === 1 ? 'fuente seleccionada' : 'fuentes seleccionadas'}. Escribe tu primera pregunta.`
-                      : 'No hay mensajes aún. Escribe tu primera pregunta.'}
-                  </p>
-                </div>
               ) : (
-                <div className="mx-auto flex max-w-3xl flex-col gap-4">
+                <div className="mx-auto max-w-3xl flex flex-col space-y-1">
                   {messages.map((msg) => (
                     <MessageBubble
                       key={msg.id}
                       role={msg.role}
                       content={msg.content}
                       createdAt={msg.createdAt}
+                      sources={msg.role === 'assistant' ? sources : []}
                     />
                   ))}
+
+                  {/* Indicador de pensando / generando */}
                   {sending && (
-                    <div className="flex justify-start">
-                      <div className="rounded-2xl rounded-bl-md bg-slate-800/80 px-4 py-3 flex items-center gap-2 border border-slate-700/60">
-                        <Spinner size="sm" />
-                        <span className="text-xs text-slate-400">Buscando en tus fuentes y redactando...</span>
-                      </div>
+                    <div className="flex items-center gap-2.5 py-3 text-xs text-zinc-400 dark:text-zinc-500 animate-pulse">
+                      <div className="h-2 w-2 rounded-full bg-zinc-400 dark:bg-zinc-500" />
+                      <span>Consultando base de documentos y redactando...</span>
                     </div>
                   )}
+
                   <div ref={bottomRef} />
                 </div>
               )}
             </div>
 
-            {/* Input */}
-            <div className="border-t border-slate-800 bg-slate-900/50 px-4 py-4">
+            {/* Input acoplado al pie */}
+            <div className="p-4 bg-gradient-to-t from-[#fbfbfa] dark:from-[#131315] via-[#fbfbfa]/90 dark:via-[#131315]/90 to-transparent">
               <div className="mx-auto max-w-3xl">
-                <MessageInput onSend={handleSend} disabled={sending} />
+                <MessageInput
+                  onSend={handleSend}
+                  disabled={sending}
+                  onOpenSources={() => setShowManageSources(true)}
+                />
               </div>
             </div>
           </>
         )}
       </main>
 
-      {/* Modal para Crear Nuevo Chat con Selección de Fuentes */}
+      {/* Modales */}
       <NewChatModal
         open={showNewChat}
         onConfirm={handleCreateChat}
         onCancel={() => setShowNewChat(false)}
       />
 
-      {/* Modal para Gestionar Fuentes del Chat Activo */}
       <ManageSourcesModal
         open={showManageSources}
         currentDocIds={configuredDocIds}
@@ -234,11 +319,10 @@ export function ChatPage() {
         onCancel={() => setShowManageSources(false)}
       />
 
-      {/* Modal de confirmación para eliminar chat */}
       <ConfirmModal
         open={!!deleteTarget}
         title="Eliminar chat"
-        message="¿Estás seguro de que quieres eliminar este chat? Se perderán todos los mensajes."
+        message="¿Estás seguro de que deseas eliminar esta conversación? Esta acción no se puede deshacer."
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />

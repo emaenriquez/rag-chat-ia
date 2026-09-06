@@ -530,13 +530,18 @@ POST /api/v1/chats
 ```
 
 #### Body (JSON)
-| Campo   | Tipo     | Requerido | Descripción / Default             |
-|---------|----------|-----------|-----------------------------------|
-| `title` | `string` | ❌        | Título opcional (Default: `'Nuevo Chat'`) |
+| Campo         | Tipo       | Requerido | Descripción / Default                                          |
+|---------------|------------|-----------|----------------------------------------------------------------|
+| `title`       | `string`   | ❌        | Título opcional (Default: `'Nuevo Chat'`)                      |
+| `documentIds` | `string[]` | ❌        | Arreglo opcional de UUIDs de documentos a asociar como fuentes |
 
 ```json
 {
-  "title": "Consultas sobre Políticas de Empresa"
+  "title": "Consultas sobre Políticas de Empresa",
+  "documentIds": [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "660e8400-e29b-41d4-a716-446655440001"
+  ]
 }
 ```
 
@@ -549,7 +554,17 @@ POST /api/v1/chats
       "id": "e83e60cb-9861-460d-85fa-7b70bc97eb6d",
       "title": "Consultas sobre Políticas de Empresa",
       "createdAt": "2026-08-31T23:15:00.000Z",
-      "updatedAt": "2026-08-31T23:15:00.000Z"
+      "updatedAt": "2026-08-31T23:15:00.000Z",
+      "chatDocuments": [
+        {
+          "document": {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "originalName": "manual_empleado.pdf",
+            "status": "processed",
+            "mimeType": "application/pdf"
+          }
+        }
+      ]
     }
   }
   ```
@@ -622,6 +637,57 @@ GET /api/v1/chats/:id
     }
   }
   ```
+- **`404 Not Found`**
+
+---
+
+### Actualizar Fuentes del Chat
+
+Actualiza la lista de documentos vinculados a un chat para filtrar las consultas RAG.
+
+```http
+PUT /api/v1/chats/:id/sources
+```
+
+#### Parámetros de Ruta
+| Parámetro | Tipo   | Descripción                  |
+|-----------|--------|------------------------------|
+| `id`      | `UUID` | Identificador único del chat |
+
+#### Body (JSON)
+| Campo         | Tipo       | Requerido | Descripción                                             |
+|---------------|------------|-----------|---------------------------------------------------------|
+| `documentIds` | `string[]` | ✅        | Lista de UUIDs de documentos procesados a vincular      |
+
+```json
+{
+  "documentIds": [
+    "550e8400-e29b-41d4-a716-446655440000"
+  ]
+}
+```
+
+#### Respuestas
+- **`200 OK`**
+  ```json
+  {
+    "success": true,
+    "chat": {
+      "id": "e83e60cb-9861-460d-85fa-7b70bc97eb6d",
+      "chatDocuments": [
+        {
+          "document": {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "originalName": "manual_empleado.pdf",
+            "status": "processed",
+            "mimeType": "application/pdf"
+          }
+        }
+      ]
+    }
+  }
+  ```
+- **`400 Bad Request`** (documentos no válidos o sin procesar)
 - **`404 Not Found`**
 
 ---

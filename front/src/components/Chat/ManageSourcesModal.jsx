@@ -47,13 +47,13 @@ export function ManageSourcesModal({ open, currentDocIds = [], onSave, onCancel 
 
   const handleToggleDoc = (id, status) => {
     if (status !== 'processed') return
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     )
   }
 
   const handleSelectAll = () => {
-    const readyIds = documents.filter(d => d.status === 'processed').map(d => d.id)
+    const readyIds = documents.filter((d) => d.status === 'processed').map((d) => d.id)
     setSelectedIds(readyIds)
   }
 
@@ -71,14 +71,16 @@ export function ManageSourcesModal({ open, currentDocIds = [], onSave, onCancel 
       const res = await documentService.upload(file)
       const newDoc = res.document
       if (newDoc) {
-        setDocuments(prev => [newDoc, ...prev])
+        setDocuments((prev) => [newDoc, ...prev])
         setTimeout(async () => {
           try {
             const data = await documentService.getAll()
             setDocuments(data.documents || [])
-            const processed = (data.documents || []).find(d => d.id === newDoc.id && d.status === 'processed')
+            const processed = (data.documents || []).find(
+              (d) => d.id === newDoc.id && d.status === 'processed'
+            )
             if (processed) {
-              setSelectedIds(prev => [...prev, newDoc.id])
+              setSelectedIds((prev) => [...prev, newDoc.id])
             }
           } catch {}
         }, 2000)
@@ -104,77 +106,82 @@ export function ManageSourcesModal({ open, currentDocIds = [], onSave, onCancel 
     }
   }
 
-  const filteredDocs = documents.filter(doc =>
+  const filteredDocs = documents.filter((doc) =>
     doc.originalName.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-xs p-4"
+      onClick={onCancel}
+    >
       <div
-        className="w-full max-w-lg rounded-2xl border border-slate-700/80 bg-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+        className="w-full max-w-lg rounded-2xl md:rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-[#18181b] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] transition-all"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+        <div className="border-b border-zinc-100 dark:border-zinc-800/80 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600/20 text-violet-400">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-              </svg>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100">
+              📄
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-100">Fuentes del Chat</h3>
-              <p className="text-xs text-slate-400">Ajusta los documentos asociados a esta conversación</p>
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                Gestionar fuentes del chat
+              </h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Ajusta qué documentos consulta esta conversación activa
+              </p>
             </div>
           </div>
           <button
             onClick={onCancel}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+            className="rounded-lg p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
+            ✕
           </button>
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden p-6 gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden p-6 gap-3">
+          {error && (
+            <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">
+              {error}
+            </div>
+          )}
+
+          {/* Acciones de selección */}
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-300">
-              {selectedIds.length} archivos vinculados
+            <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+              {selectedIds.length} fuentes seleccionadas
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-xs">
               <button
                 type="button"
                 onClick={handleSelectAll}
-                className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                className="text-zinc-600 dark:text-zinc-400 hover:underline"
               >
                 Seleccionar todos
               </button>
-              <span className="text-slate-600 text-xs">•</span>
+              <span className="text-zinc-300 dark:text-zinc-700">•</span>
               <button
                 type="button"
                 onClick={handleClearAll}
-                className="text-xs text-slate-400 hover:text-slate-300 transition-colors"
+                className="text-zinc-500 dark:text-zinc-500 hover:underline"
               >
                 Limpiar
               </button>
             </div>
           </div>
 
-          {/* Search + Upload */}
+          {/* Filtro y upload */}
           <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-              </svg>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filtrar por nombre..."
-                className="w-full rounded-lg border border-slate-700/80 bg-slate-950 pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-violet-500"
-              />
-            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filtrar archivos..."
+              className="flex-1 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 outline-none focus:border-zinc-400"
+            />
             <input
               ref={fileInputRef}
               type="file"
@@ -186,72 +193,69 @@ export function ManageSourcesModal({ open, currentDocIds = [], onSave, onCancel 
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-violet-500/50 hover:bg-slate-700/80 transition-colors disabled:opacity-50 shrink-0"
+              className="flex items-center gap-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/80 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50 shrink-0"
             >
               {uploading ? <Spinner size="sm" /> : <span>+ Subir</span>}
             </button>
           </div>
 
-          {error && (
-            <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-xs text-red-400">
-              {error}
-            </div>
-          )}
-
-          {/* List */}
-          <div className="flex-1 overflow-y-auto border border-slate-800 rounded-xl bg-slate-950/60 divide-y divide-slate-800/80 p-1 min-h-[160px] max-h-[300px]">
+          {/* Lista */}
+          <div className="flex-1 overflow-y-auto border border-zinc-200/80 dark:border-zinc-800 rounded-xl bg-zinc-50/50 dark:bg-zinc-900/40 divide-y divide-zinc-200/60 dark:divide-zinc-800/60 p-1">
             {loadingDocs ? (
               <div className="flex justify-center py-8">
                 <Spinner size="md" />
               </div>
             ) : filteredDocs.length === 0 ? (
-              <p className="py-8 text-center text-xs text-slate-500">No hay documentos para mostrar</p>
+              <p className="text-center py-6 text-xs text-zinc-400">No se encontraron documentos</p>
             ) : (
               filteredDocs.map((doc) => {
                 const isSelected = selectedIds.includes(doc.id)
                 const isReady = doc.status === 'processed'
+
                 return (
                   <div
                     key={doc.id}
                     onClick={() => handleToggleDoc(doc.id, doc.status)}
-                    className={`flex items-center justify-between p-2.5 rounded-lg transition-colors cursor-pointer ${
+                    className={`flex items-center justify-between p-2 rounded-lg transition-colors cursor-pointer ${
                       !isReady
-                        ? 'opacity-50 cursor-not-allowed'
+                        ? 'opacity-40 cursor-not-allowed'
                         : isSelected
-                        ? 'bg-violet-950/40 hover:bg-violet-900/30'
-                        : 'hover:bg-slate-900/60'
+                        ? 'bg-zinc-200/70 dark:bg-zinc-800/90'
+                        : 'hover:bg-zinc-100/70 dark:hover:bg-zinc-800/40'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div
                         className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                           isSelected
-                            ? 'border-violet-500 bg-violet-600 text-white'
-                            : 'border-slate-600 bg-slate-900'
+                            ? 'border-zinc-900 bg-zinc-900 dark:border-zinc-100 dark:bg-zinc-100 text-white dark:text-zinc-900'
+                            : 'border-zinc-300 dark:border-zinc-700 bg-transparent'
                         }`}
                       >
                         {isSelected && (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <polyline points="20 6 9 17 4 12" />
                           </svg>
                         )}
                       </div>
+
                       <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-medium text-slate-200 truncate" title={doc.originalName}>
+                        <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate" title={doc.originalName}>
                           {doc.originalName}
                         </span>
-                        <span className="text-[10px] text-slate-500">
+                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
                           {formatSize(doc.fileSize)}
                         </span>
                       </div>
                     </div>
-                    <div>
+
+                    <div className="shrink-0 ml-2">
                       {doc.status === 'processed' ? (
-                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                        <span className="inline-flex items-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-medium">
                           Listo
                         </span>
                       ) : (
-                        <span className="rounded-full bg-slate-700/50 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+                        <span className="inline-flex items-center rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-500 px-2 py-0.5 text-[10px]">
                           {doc.status}
                         </span>
                       )}
@@ -262,21 +266,22 @@ export function ManageSourcesModal({ open, currentDocIds = [], onSave, onCancel 
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-xl px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
+              className="rounded-xl px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2 text-sm font-medium text-white hover:bg-violet-500 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 px-4 py-2 text-xs font-semibold shadow-xs hover:opacity-90 active:scale-98 transition-all disabled:opacity-50"
             >
               {saving && <Spinner size="sm" />}
-              <span>Guardar Fuentes</span>
+              <span>Guardar cambios</span>
             </button>
           </div>
         </form>

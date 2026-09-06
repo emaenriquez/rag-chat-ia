@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { Link, Navigate } from 'react-router-dom'
 import { Spinner } from '../components/ui/Spinner'
 
 export function LoginPage() {
   const { login, isAuthenticated, loading: authLoading } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -12,7 +14,7 @@ export function LoginPage() {
 
   if (authLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
+      <div className="flex h-screen items-center justify-center bg-[#fbfbfa] dark:bg-[#131315]">
         <Spinner size="lg" />
       </div>
     )
@@ -34,71 +36,89 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#fbfbfa] dark:bg-[#131315] text-zinc-900 dark:text-zinc-100 px-4 transition-colors duration-200 relative">
+      {/* Botón flotante para alternar tema */}
+      <button
+        onClick={toggleTheme}
+        className="absolute top-6 right-6 flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        title="Cambiar tema"
+      >
+        {theme === 'dark' ? '☀️' : '🌙'}
+      </button>
+
       <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600 text-lg font-bold text-white shadow-lg shadow-violet-600/30">
-            R
-          </div>
-          <h1 className="text-xl font-semibold text-slate-100">RAG Chat IA</h1>
-          <p className="mt-1 text-sm text-slate-500">Inicia sesión para continuar</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
-              {error}
+        {/* Double-bezel card */}
+        <div className="p-1 rounded-[1.75rem] bg-zinc-200/50 dark:bg-zinc-800/40 ring-1 ring-zinc-300/40 dark:ring-white/10">
+          <div className="rounded-[1.5rem] bg-white dark:bg-[#18181b] border border-zinc-200/70 dark:border-white/5 p-7 shadow-xl prompt-card-shadow">
+            {/* Logo */}
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-base font-semibold shadow-xs">
+                ✦
+              </div>
+              <h1 className="text-xl font-serif tracking-tight text-zinc-900 dark:text-zinc-100 font-normal">
+                RAG Chat IA
+              </h1>
+              <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                Inicia sesión en tu espacio de trabajo
+              </p>
             </div>
-          )}
 
-          <div>
-            <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-300">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-              className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50"
-              placeholder="tu@email.com"
-            />
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              {error && (
+                <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="email" className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                  className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-all"
+                  placeholder="tu@email.com"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="password" className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  Contraseña
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 py-2.5 text-xs font-semibold shadow-xs transition-all hover:opacity-90 active:scale-98 disabled:opacity-40"
+              >
+                {loading && <Spinner size="sm" />}
+                <span>Continuar</span>
+              </button>
+            </form>
+
+            <p className="mt-6 text-center text-xs text-zinc-400 dark:text-zinc-500">
+              ¿No tienes una cuenta?{' '}
+              <Link to="/register" className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline">
+                Regístrate
+              </Link>
+            </p>
           </div>
-
-          <div>
-            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-300">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-500 disabled:opacity-50"
-          >
-            {loading && <Spinner size="sm" />}
-            Iniciar sesión
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          ¿No tienes cuenta?{' '}
-          <Link to="/register" className="text-violet-400 hover:text-violet-300 transition-colors">
-            Regístrate
-          </Link>
-        </p>
+        </div>
       </div>
     </div>
   )
