@@ -909,6 +909,10 @@ POST /api/v1/chats/:id/messages
 | `UPLOAD_DIR`          | ❌        | `storage/documents`   | Directorio local de persistencia de archivos subidos   |
 | `MAX_FILE_SIZE_MB`    | ❌        | `20`                  | Tamaño máximo permitido por archivo (en MB)            |
 | `GEMINI_API_KEY`      | ✅        | —                     | API Key de Google Generative AI (Gemini)               |
+| `R2_ACCESS_KEY_ID`    | ✅        | —                     | Access Key ID de Cloudflare R2                         |
+| `R2_SECRET_ACCESS_KEY`| ✅        | —                     | Secret Access Key de Cloudflare R2                     |
+| `R2_ENDPOINT` / `ENPOINT` | ✅    | —                     | Endpoint URL de Cloudflare R2                          |
+| `R2_BUCKET_NAME`      | ❌        | `rag-documents`       | Nombre del Bucket en Cloudflare R2                     |
 
 ---
 

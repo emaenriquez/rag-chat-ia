@@ -54,25 +54,6 @@ export function MessageBubble({ role, content, createdAt, sources = [] }) {
             {content}
           </div>
 
-          {/* Fuentes consultadas (si existen) */}
-          {sources && sources.length > 0 && (
-            <div className="mt-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80">
-              <span className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500 block mb-1">
-                Fuentes consultadas:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {sources.map((src, idx) => (
-                  <span
-                    key={src.id || idx}
-                    className="inline-flex items-center gap-1 rounded-md bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/60 px-2 py-0.5 text-[11px] text-zinc-600 dark:text-zinc-300 font-mono"
-                  >
-                    📄 {src.originalName || src.title || 'Documento'}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Barra inferior: hora y botón copiar */}
           <div className="flex items-center justify-between mt-2 pt-1 border-t border-zinc-100/60 dark:border-zinc-800/40 text-[10px] text-zinc-400 dark:text-zinc-500">
             <span>{formattedTime || 'Reciente'}</span>

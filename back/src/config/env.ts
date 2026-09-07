@@ -17,5 +17,9 @@ export const env = {
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
     uploadDir: process.env.UPLOAD_DIR || 'storage/documents',
     maxFileSizeMb: Number(process.env.MAX_FILE_SIZE_MB) || 20,
-    geminiApiKey: required('GEMINI_API_KEY')
+    geminiApiKey: required('GEMINI_API_KEY'),
+    r2AccessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+    r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+    r2Endpoint: process.env.R2_ENDPOINT || process.env.ENPOINT || process.env.ENDPOINT || '',
+    r2BucketName: process.env.R2_BUCKET_NAME || process.env.BUCKET_NAME || 'rag-documents',
 };

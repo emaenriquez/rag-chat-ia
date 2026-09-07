@@ -1,21 +1,11 @@
 import multer from 'multer'
 import path from 'path'
-import { v4 as uuid } from 'uuid'
 import { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES } from '../models/document.schema.js'
 import { env } from '../config/env.js'
 import { Request, Response, NextFunction } from 'express'
 
-// Configuración de dónde y cómo guardar los archivos
-const storage = multer.diskStorage({
-    destination: (req, res, cb) => {
-        cb(null, env.uploadDir)
-    },
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname).toLocaleLowerCase()
-        const filename = `${uuid()}${ext}`
-        cb(null, filename)
-    }
-})
+// Almacenamiento en memoria para subir a Cloudflare R2
+const storage = multer.memoryStorage()
 
 // Filtro de tipo de archivo
 const fileFilter = (

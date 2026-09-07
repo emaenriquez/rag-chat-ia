@@ -1,21 +1,22 @@
 import { Request, Response } from 'express'
-import fs from 'fs/promises'
 import path from 'path'
+import { v4 as uuid } from 'uuid'
 import { prisma } from '../config/database.js'
 import { ragService } from '../services/rag.service.js'
+import { r2Service } from '../services/r2.service.js'
 
 // ─────────────────────────────────────────────
 // POST /api/v1/documents
 // Subir un nuevo documento
 // ─────────────────────────────────────────────
 export const uploadDocument = async (req: Request, res: Response): Promise<void> => {
-    // Multer ya procesó el archivo y lo guardó en req.file
+    // Multer procesó el archivo en memoria (req.file.buffer)
     if (!req.file) {
         res.status(400).json({ success: false, message: 'No se recibió ningún archivo' })
         return
     }
 
-    const { originalname, filename, mimetype, size, path: filePath } = req.file
+    const { originalname, mimetype, size, buffer } = req.file
     const userId = req.user!.sub
 
     // Verificar si el usuario ya subió un archivo con el mismo nombre
@@ -27,19 +28,19 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
     })
 
     if (existingDocument) {
-        // Eliminar el archivo físico recién subido por multer para no acumular basura
-        try {
-            await fs.unlink(filePath)
-        } catch (error) {
-            console.error(`[ERROR] No se pudo eliminar el archivo duplicado: ${filePath}`, error)
-        }
-
         res.status(409).json({
             success: false,
             message: `El archivo "${originalname}" ya fue subido anteriormente.`,
         })
         return
     }
+
+    const ext = path.extname(originalname).toLowerCase()
+    const filename = `${uuid()}${ext}`
+    const storagePath = `documents/${filename}`
+
+    // Subir a Cloudflare R2
+    await r2Service.uploadFile(storagePath, buffer, mimetype)
 
     const document = await prisma.document.create({
         data: {
@@ -48,7 +49,7 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
             originalName: originalname, // nombre original del usuario
             mimeType: mimetype,
             fileSize: BigInt(size),
-            storagePath: filePath,
+            storagePath,
             status: 'uploaded',
         },
         select: {
@@ -171,12 +172,12 @@ export const deleteDocument = async (req: Request<{ id: string }>, res: Response
     // Eliminar de la BD (cascade elimina chunks y embeddings)
     await prisma.document.delete({ where: { id } })
 
-    // Eliminar el archivo físico del disco
+    // Eliminar el archivo de Cloudflare R2
     try {
-        await fs.unlink(document.storagePath)
+        await r2Service.deleteFile(document.storagePath)
     } catch {
-        // Si el archivo no existe, no es un error crítico
-        console.warn(`[WARN] No se pudo eliminar archivo: ${document.storagePath}`)
+        // Si el archivo no existe en el bucket, no es un error crítico
+        console.warn(`[WARN] No se pudo eliminar archivo de R2: ${document.storagePath}`)
     }
 
     res.json({ success: true, message: 'Documento eliminado correctamente' })

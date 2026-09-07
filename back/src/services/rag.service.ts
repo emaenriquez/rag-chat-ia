@@ -1,10 +1,10 @@
-import fs from 'fs/promises';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../config/database.js';
 import { geminiService } from './gemini.service.js';
+import { r2Service } from './r2.service.js';
 
 // Simple text splitter with overlap
 function splitTextIntoChunks(text: string, chunkSize = 1000, overlap = 200): string[] {
@@ -58,17 +58,17 @@ export const ragService = {
             });
             console.log(`[RAG Pipeline] Estado actualizado a 'processing'. Extrayendo texto del archivo: ${document.originalName}`);
 
-            // 2. Read and extract text
+            // 2. Read and extract text from Cloudflare R2
+            const fileBuffer = await r2Service.getFileBuffer(document.storagePath);
             let text = '';
             if (document.mimeType === 'application/pdf') {
-                const dataBuffer = await fs.readFile(document.storagePath);
-                const data = await pdfParse(dataBuffer);
+                const data = await pdfParse(fileBuffer);
                 text = data.text;
-                console.log(`[RAG Pipeline] PDF extraído con éxito. Longitud del texto: ${text.length} caracteres.`);
+                console.log(`[RAG Pipeline] PDF extraído con éxito desde R2. Longitud del texto: ${text.length} caracteres.`);
             } else {
                 // Assume txt/md
-                text = await fs.readFile(document.storagePath, 'utf8');
-                console.log(`[RAG Pipeline] Archivo de texto leído con éxito. Longitud: ${text.length} caracteres.`);
+                text = fileBuffer.toString('utf-8');
+                console.log(`[RAG Pipeline] Archivo de texto leído con éxito desde R2. Longitud: ${text.length} caracteres.`);
             }
 
             // 3. Split text into chunks
