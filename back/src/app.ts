@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/errorHandler.js'
 import { swaggerSpec } from './config/swagger.js'
 
 const app = express()
+app.set('trust proxy', 1) // Soluciona el error del rate-limit en Render
 
 // Helmet con configuración ajustada para permitir scripts/estilos de Swagger UI
 app.use(
