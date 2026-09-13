@@ -31,17 +31,16 @@ export function AuthProvider({ children }) {
         localStorage.setItem('user', JSON.stringify(data.user))
       })
       .catch(() => {
-        // Solo si el token es inválido/expirado limpiamos la sesión
+        // Solo si el token es inválido/expirado y el refresh falló se limpia la sesión
         setUser(null)
         setToken(null)
-        localStorage.removeItem('user')
       })
       .finally(() => setLoading(false))
   }, [])
 
   const login = useCallback(async (email, password) => {
     const data = await authService.login(email, password)
-    setToken(data.accessToken)
+    setToken(data.accessToken, data.refreshToken)
     setUser(data.user)
     localStorage.setItem('user', JSON.stringify(data.user))
     return data
@@ -59,7 +58,6 @@ export function AuthProvider({ children }) {
     }
     setToken(null)
     setUser(null)
-    localStorage.removeItem('user')
   }, [])
 
   return (

@@ -56,11 +56,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const accessToken = generateAccessToken(user.id, user.email)
     const refreshToken = await createRefreshToken(user.id)
     res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS)
-    res.json({ success: true, accessToken, user: { id: user.id, email: user.email } })
+    res.json({ success: true, accessToken, refreshToken, user: { id: user.id, email: user.email } })
 }
 
 export const refresh = async (req: Request, res: Response): Promise<void> => {
-    const token = req.cookies?.refreshToken as string | undefined
+    const token = (req.body?.refreshToken || req.cookies?.refreshToken) as string | undefined
     if (!token) {
         res.status(401).json({ success: false, message: 'Refresh token no proporcionado' })
         return
@@ -93,7 +93,7 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     const newRefreshToken = await createRefreshToken(stored.user.id)
 
     res.cookie('refreshToken', newRefreshToken, COOKIE_OPTIONS)
-    res.json({ success: true, accessToken: newAccessToken })
+    res.json({ success: true, accessToken: newAccessToken, refreshToken: newRefreshToken })
 
 }
 
@@ -110,7 +110,7 @@ export const me = async (req: Request, res: Response): Promise<void> => {
 }
 
 export const logout = async (req: Request, res: Response): Promise<void> => {
-    const token = req.cookies?.refreshToken as string | undefined
+    const token = (req.body?.refreshToken || req.cookies?.refreshToken) as string | undefined
     if (token) {
         const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
         await prisma.refreshToken.deleteMany({ where: { tokenHash } })

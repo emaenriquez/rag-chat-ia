@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api, getRefreshToken } from './api'
 
 export const authService = {
   login: (email, password) =>
@@ -6,5 +6,5 @@ export const authService = {
   register: (email, password) =>
     api.post('/auth/register', { email, password }, { auth: false }),
   me: () => api.get('/auth/me'),
-  logout: () => api.post('/auth/logout'),
+  logout: () => api.post('/auth/logout', { refreshToken: getRefreshToken() }),
 }

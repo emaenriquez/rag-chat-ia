@@ -17,7 +17,25 @@ app.use(
         contentSecurityPolicy: false,
     })
 )
-app.use(cors({ origin: env.frontendUrl, credentials: true }))
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            if (!origin) return callback(null, true)
+            const cleanOrigin = origin.replace(/\/$/, '')
+            const cleanFrontend = (env.frontendUrl || '').replace(/\/$/, '')
+            if (
+                cleanOrigin === cleanFrontend ||
+                cleanOrigin.endsWith('.vercel.app') ||
+                cleanOrigin.includes('localhost') ||
+                cleanOrigin.includes('127.0.0.1')
+            ) {
+                return callback(null, origin)
+            }
+            return callback(null, origin)
+        },
+        credentials: true,
+    })
+)
 app.use(express.json({ limit: '10kb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())

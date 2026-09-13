@@ -1,13 +1,21 @@
 const API_URL = import.meta.env.VITE_API_URL
 
 let accessToken = localStorage.getItem('token') || null
+let refreshPromise = null
 
-export function setToken(token) {
+export function setToken(token, refreshToken = null) {
   accessToken = token
   if (token) {
     localStorage.setItem('token', token)
   } else {
     localStorage.removeItem('token')
+  }
+
+  if (refreshToken) {
+    localStorage.setItem('refreshToken', refreshToken)
+  } else if (token === null) {
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('user')
   }
 }
 
@@ -18,15 +26,46 @@ export function getToken() {
   return accessToken
 }
 
-async function refreshAccessToken() {
-  const res = await fetch(`${API_URL}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-  })
-  if (!res.ok) throw new Error('Session expired')
-  const data = await res.json()
-  setToken(data.accessToken)
-  return data.accessToken
+export function getRefreshToken() {
+  return localStorage.getItem('refreshToken')
+}
+
+export async function refreshAccessToken() {
+  // Evitar condiciones de carrera: si ya hay un refresh en curso, reutilizar la misma promesa
+  if (refreshPromise) {
+    return refreshPromise
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const storedRefreshToken = getRefreshToken()
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ refreshToken: storedRefreshToken }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Session expired')
+      }
+
+      const data = await res.json()
+      if (!data.accessToken) {
+        throw new Error('No access token returned')
+      }
+
+      setToken(data.accessToken, data.refreshToken)
+      return data.accessToken
+    } catch (err) {
+      setToken(null)
+      throw err
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
 }
 
 async function request(endpoint, options = {}) {
@@ -52,8 +91,8 @@ async function request(endpoint, options = {}) {
     throw new Error('No se pudo conectar con el servidor. Verifica tu conexión.')
   }
 
-  // Auto-refresh on 401 si la petición requería auth y teníamos token previo
-  if (res.status === 401 && auth && token) {
+  // Auto-refresh on 401 si la petición requería auth
+  if (res.status === 401 && auth) {
     try {
       const newToken = await refreshAccessToken()
       headers['Authorization'] = `Bearer ${newToken}`
@@ -64,7 +103,6 @@ async function request(endpoint, options = {}) {
       })
     } catch {
       setToken(null)
-      localStorage.removeItem('user')
       throw new Error('Sesión expirada')
     }
   }
