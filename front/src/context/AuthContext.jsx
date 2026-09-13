@@ -1,23 +1,40 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { authService } from '../services/authService'
-import { setToken } from '../services/api'
+import { setToken, getToken } from '../services/api'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('user')
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
   const [loading, setLoading] = useState(true)
 
-  // Try to recover session on mount via refresh cookie
+  // Recuperar sesión al cargar o recargar la página
   useEffect(() => {
+    const token = getToken()
+    if (!token) {
+      setUser(null)
+      setLoading(false)
+      return
+    }
+
     authService
       .me()
       .then((data) => {
         setUser(data.user)
+        localStorage.setItem('user', JSON.stringify(data.user))
       })
       .catch(() => {
+        // Solo si el token es inválido/expirado limpiamos la sesión
         setUser(null)
         setToken(null)
+        localStorage.removeItem('user')
       })
       .finally(() => setLoading(false))
   }, [])
@@ -26,6 +43,7 @@ export function AuthProvider({ children }) {
     const data = await authService.login(email, password)
     setToken(data.accessToken)
     setUser(data.user)
+    localStorage.setItem('user', JSON.stringify(data.user))
     return data
   }, [])
 
@@ -41,6 +59,7 @@ export function AuthProvider({ children }) {
     }
     setToken(null)
     setUser(null)
+    localStorage.removeItem('user')
   }, [])
 
   return (

@@ -6,7 +6,7 @@ export const validate = (shema: z.ZodSchema) => (req: Request, res: Response, ne
     if (!result.success) {
         res.status(400).json({
             success: false,
-            message: 'validacion error',
+            message: 'Error de validación',
             errors: result.error.flatten().fieldErrors,
         })
         return;

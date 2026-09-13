@@ -1,11 +1,21 @@
 import { Response, Request, NextFunction } from "express";
 
 export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction): void => {
-    console.error(`[ERROR] ${req.method} ${req.path}:`, err?.message || err)
+    // Log completo para depuración en el servidor
+    console.error(`[ERROR] ${req.method} ${req.path}:`, err?.stack || err?.message || err)
 
-    res.status(err.status || 500).json({
+    const status = (typeof err.status === 'number' && err.status >= 400 && err.status < 500)
+        ? err.status
+        : 500
+
+    // Si es un error de cliente (4xx) se mantiene el mensaje, de lo contrario se usa mensaje genérico seguro
+    const message = status < 500 && err?.message
+        ? err.message
+        : 'Error interno del servidor'
+
+    res.status(status).json({
         success: false,
-        message: process.env.NODE_ENV === 'production' ? 'Error interno del servidor' : (err?.message || 'Error interno'),
+        message,
     })
 }
 
