@@ -19,7 +19,7 @@ app.use(
 )
 app.use(
     cors({
-        origin: (origin, callback) => {
+        origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) => {
             if (!origin) return callback(null, true)
             const cleanOrigin = origin.replace(/\/$/, '')
             const cleanFrontend = (env.frontendUrl || '').replace(/\/$/, '')
