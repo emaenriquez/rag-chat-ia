@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { documentService } from '../../services/documentService'
 import { Spinner } from '../ui/Spinner'
 
@@ -19,9 +19,48 @@ export function NewChatModal({ open, onConfirm, onCancel }) {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef(null)
+  const pollingRef = useRef(null)
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+  }, [])
+
+  const startPolling = useCallback(() => {
+    stopPolling()
+    const INTERVAL_MS = 3000
+    const MAX_POLLS = 40 // 2 minutos máximo
+    let pollCount = 0
+
+    pollingRef.current = setInterval(async () => {
+      pollCount++
+      try {
+        const data = await documentService.getAll()
+        const docs = data.documents || []
+        const hasProcessing = docs.some((d) => d.status === 'processing')
+
+        setDocuments(docs)
+        setSelectedIds((prevSelected) => {
+          const newlyProcessed = docs
+            .filter((d) => d.status === 'processed' && !prevSelected.includes(d.id))
+            .map((d) => d.id)
+          return newlyProcessed.length > 0 ? [...prevSelected, ...newlyProcessed] : prevSelected
+        })
+
+        if (!hasProcessing || pollCount >= MAX_POLLS) {
+          stopPolling()
+        }
+      } catch {
+        // silently ignore network errors during polling
+      }
+    }, INTERVAL_MS)
+  }, [stopPolling])
 
   useEffect(() => {
     if (!open) {
+      stopPolling()
       setTitle('')
       setSelectedIds([])
       setSearch('')
@@ -37,6 +76,10 @@ export function NewChatModal({ open, onConfirm, onCancel }) {
         setDocuments(docs)
         const readyIds = docs.filter((d) => d.status === 'processed').map((d) => d.id)
         setSelectedIds(readyIds)
+        // Si ya hay documentos procesando al abrir el modal, iniciar polling
+        if (docs.some((d) => d.status === 'processing')) {
+          startPolling()
+        }
       } catch (err) {
         console.error('Error cargando documentos:', err)
         setDocuments([])
@@ -46,7 +89,9 @@ export function NewChatModal({ open, onConfirm, onCancel }) {
     }
 
     loadDocuments()
-  }, [open])
+
+    return () => stopPolling()
+  }, [open, startPolling, stopPolling])
 
   if (!open) return null
 
@@ -76,19 +121,10 @@ export function NewChatModal({ open, onConfirm, onCancel }) {
       const res = await documentService.upload(file)
       const newDoc = res.document
       if (newDoc) {
+        // Agregar el documento inmediatamente como "processing"
         setDocuments((prev) => [newDoc, ...prev])
-        setTimeout(async () => {
-          try {
-            const data = await documentService.getAll()
-            setDocuments(data.documents || [])
-            const processed = (data.documents || []).find(
-              (d) => d.id === newDoc.id && d.status === 'processed'
-            )
-            if (processed) {
-              setSelectedIds((prev) => [...prev, newDoc.id])
-            }
-          } catch {}
-        }, 2000)
+        // Iniciar polling para detectar cuando termine de procesarse
+        startPolling()
       }
     } catch (err) {
       setUploadError(err.message || 'Error al subir el archivo')

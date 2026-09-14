@@ -282,7 +282,7 @@ export function ChatPage() {
                   {sending && (
                     <div className="flex items-center gap-2.5 py-3 text-xs text-zinc-400 dark:text-zinc-500 animate-pulse">
                       <div className="h-2 w-2 rounded-full bg-zinc-400 dark:bg-zinc-500" />
-                      <span>Consultando base de documentos y redactando...</span>
+                      <span>Consultando y redactando...</span>
                     </div>
                   )}
 
