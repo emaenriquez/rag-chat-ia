@@ -40,12 +40,14 @@ app.use(express.json({ limit: '10kb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
 
-// Documentación de Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
-app.get('/api-docs.json', (req, res) => {
-    res.setHeader('Content-Type', 'application/json')
-    res.send(swaggerSpec)
-})
+// Documentación de Swagger UI (Solo habilitada en desarrollo o si ENABLE_SWAGGER=true)
+if (env.nodeEnv !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+    app.get('/api-docs.json', (req, res) => {
+        res.setHeader('Content-Type', 'application/json')
+        res.send(swaggerSpec)
+    })
+}
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timeStamp: new Date().toISOString() })
