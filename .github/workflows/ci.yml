@@ -1,0 +1,69 @@
+name: CI Pipeline
+
+# Se ejecuta cada vez que haces un push a la rama main o abres un Pull Request
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ==========================================
+  # TRABAJO 1: Validar Backend y Docker
+  # ==========================================
+  backend-checks:
+    name: Backend Lint, Build & Docker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./back
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: back/package-lock.json
+
+      - name: Instalar dependencias del Backend
+        run: npm ci
+
+      - name: Generar cliente de Prisma
+        run: npx prisma generate
+
+      - name: Compilar TypeScript (Type Check y Build)
+        run: npm run build
+
+      - name: Probar construcción de la imagen Docker
+        run: docker build -t rag-backend:test .
+
+  # ==========================================
+  # TRABAJO 2: Validar Frontend (React + Vite)
+  # ==========================================
+  frontend-checks:
+    name: Frontend Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./front
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: front/package-lock.json
+
+      - name: Instalar dependencias del Frontend
+        run: npm ci
+
+      - name: Compilar Frontend (Vite Build)
+        run: npm run build
