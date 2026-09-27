@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import {
     createChat,
     listChats,
@@ -11,6 +11,15 @@ import { authenticate } from '../middleware/autheticate.js'
 import { validate } from '../middleware/validate.js'
 import { chatLimiter } from '../middleware/rateLimit.js'
 import { CreateChatSchema, SendMessageSchema, UpdateChatSourcesSchema } from '../models/chat.schema.js'
+import { z } from 'zod'
+
+const validateUuidParam = (req: Request, res: Response, next: NextFunction): void => {
+    if (!z.string().uuid().safeParse(req.params.id).success) {
+        res.status(400).json({ success: false, message: 'ID inválido' })
+        return
+    }
+    next()
+}
 
 const router = Router()
 
@@ -78,7 +87,7 @@ router.get('/', listChats)
  *       200:
  *         description: Chat encontrado
  */
-router.get('/:id', getChat)
+router.get('/:id', validateUuidParam, getChat)
 
 /**
  * @openapi
@@ -112,7 +121,7 @@ router.get('/:id', getChat)
  *       200:
  *         description: Fuentes actualizadas
  */
-router.put('/:id/sources', validate(UpdateChatSourcesSchema), updateChatSources)
+router.put('/:id/sources', validateUuidParam, validate(UpdateChatSourcesSchema), updateChatSources)
 
 /**
  * @openapi
@@ -133,7 +142,7 @@ router.put('/:id/sources', validate(UpdateChatSourcesSchema), updateChatSources)
  *       200:
  *         description: Chat eliminado
  */
-router.delete('/:id', deleteChat)
+router.delete('/:id', validateUuidParam, deleteChat)
 
 /**
  * @openapi
@@ -165,6 +174,6 @@ router.delete('/:id', deleteChat)
  *       200:
  *         description: Respuesta generada por la IA mediante RAG
  */
-router.post('/:id/messages', chatLimiter, validate(SendMessageSchema), sendMessage)
+router.post('/:id/messages', validateUuidParam, chatLimiter, validate(SendMessageSchema), sendMessage)
 
 export default router

@@ -11,10 +11,21 @@ import { swaggerSpec } from './config/swagger.js'
 const app = express()
 app.set('trust proxy', 1) // Soluciona el error del rate-limit en Render
 
-// Helmet con configuración ajustada para permitir scripts/estilos de Swagger UI
+// Helmet con CSP global habilitado
+app.use(helmet())
+
+// CSP permisivo sólo para Swagger UI (scripts/estilos inline necesarios)
 app.use(
+    '/api-docs',
     helmet({
-        contentSecurityPolicy: false,
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc:  ["'self'", "'unsafe-inline'"],
+                styleSrc:   ["'self'", "'unsafe-inline'"],
+                imgSrc:     ["'self'", "data:"],
+            },
+        },
     })
 )
 app.use(
@@ -23,15 +34,15 @@ app.use(
             if (!origin) return callback(null, true)
             const cleanOrigin = origin.replace(/\/$/, '')
             const cleanFrontend = (env.frontendUrl || '').replace(/\/$/, '')
-            if (
+            const allowed =
                 cleanOrigin === cleanFrontend ||
                 cleanOrigin.endsWith('.vercel.app') ||
-                cleanOrigin.includes('localhost') ||
-                cleanOrigin.includes('127.0.0.1')
-            ) {
-                return callback(null, origin)
-            }
-            return callback(null, origin)
+                (env.nodeEnv !== 'production' && (
+                    cleanOrigin.includes('localhost') ||
+                    cleanOrigin.includes('127.0.0.1')
+                ))
+            if (allowed) return callback(null, origin)
+            return callback(new Error(`CORS: origen no permitido: ${cleanOrigin}`))
         },
         credentials: true,
     })
@@ -40,8 +51,8 @@ app.use(express.json({ limit: '10kb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
 
-// Documentación de Swagger UI (Solo habilitada en desarrollo o si ENABLE_SWAGGER=true)
-if (env.nodeEnv !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+// Swagger UI sólo en entornos no-productivos
+if (env.nodeEnv !== 'production') {
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
     app.get('/api-docs.json', (req, res) => {
         res.setHeader('Content-Type', 'application/json')

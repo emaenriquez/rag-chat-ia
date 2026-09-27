@@ -40,7 +40,7 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const data = await authService.login(email, password)
-    setToken(data.accessToken, data.refreshToken)
+    setToken(data.accessToken)
     setUser(data.user)
     localStorage.setItem('user', JSON.stringify(data.user))
     return data
@@ -58,6 +58,7 @@ export function AuthProvider({ children }) {
     }
     setToken(null)
     setUser(null)
+    localStorage.removeItem('user')
   }, [])
 
   return (

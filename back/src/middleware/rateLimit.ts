@@ -23,6 +23,9 @@ export const refreshLimiter = rateLimit({
 
 export const chatLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 30,
-    message: { success: false, message: 'Máximo 60 consultas por minuto.', }
+    max: 20,
+    // Chat requiere autenticación, req.user.sub siempre está disponible aquí
+    keyGenerator: (req: any) => req.user?.sub ?? 'unauthenticated',
+    skip: (req: any) => !req.user?.sub, // Si no hay usuario, dejar pasar (authenticate lo rechazará)
+    message: { success: false, message: 'Máximo 20 consultas por minuto por usuario.', }
 })

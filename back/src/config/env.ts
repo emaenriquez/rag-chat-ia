@@ -10,8 +10,16 @@ export const env = {
     port: Number(process.env.PORT) || 3000,
     nodeEnv: process.env.NODE_ENV || 'development',
     databaseUrl: required('DATABASE_URL'),
-    jwtSecret: required('JWT_SECRET'),
-    jwtRefreshSecret: required('JWT_REFRESH_SECRET'),
+    jwtSecret: (() => {
+        const s = required('JWT_SECRET')
+        if (s.length < 32) throw new Error('JWT_SECRET debe tener al menos 32 caracteres')
+        return s
+    })(),
+    jwtRefreshSecret: (() => {
+        const s = required('JWT_REFRESH_SECRET')
+        if (s.length < 32) throw new Error('JWT_REFRESH_SECRET debe tener al menos 32 caracteres')
+        return s
+    })(),
     jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES || '15m',
     jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || '30d',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -20,6 +28,6 @@ export const env = {
     geminiApiKey: required('GEMINI_API_KEY'),
     r2AccessKeyId: process.env.R2_ACCESS_KEY_ID || '',
     r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
-    r2Endpoint: process.env.R2_ENDPOINT || process.env.ENPOINT || process.env.ENDPOINT || '',
-    r2BucketName: process.env.R2_BUCKET_NAME || process.env.BUCKET_NAME || 'rag-documents',
+    r2Endpoint: process.env.R2_ENDPOINT || process.env.ENDPOINT || '',
+    r2BucketName: process.env.R2_BUCKET_NAME || 'rag-documents',
 };

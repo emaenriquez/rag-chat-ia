@@ -1,33 +1,15 @@
 const API_URL = import.meta.env.VITE_API_URL
 
-let accessToken = localStorage.getItem('token') || null
+// Access token vive solo en memoria para evitar exposición vía XSS
+let accessToken = null
 let refreshPromise = null
 
-export function setToken(token, refreshToken = null) {
+export function setToken(token) {
   accessToken = token
-  if (token) {
-    localStorage.setItem('token', token)
-  } else {
-    localStorage.removeItem('token')
-  }
-
-  if (refreshToken) {
-    localStorage.setItem('refreshToken', refreshToken)
-  } else if (token === null) {
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('user')
-  }
 }
 
 export function getToken() {
-  if (!accessToken) {
-    accessToken = localStorage.getItem('token')
-  }
   return accessToken
-}
-
-export function getRefreshToken() {
-  return localStorage.getItem('refreshToken')
 }
 
 export async function refreshAccessToken() {
@@ -38,12 +20,11 @@ export async function refreshAccessToken() {
 
   refreshPromise = (async () => {
     try {
-      const storedRefreshToken = getRefreshToken()
+      // El refresh token viaja automáticamente via httpOnly cookie (credentials: 'include')
       const res = await fetch(`${API_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ refreshToken: storedRefreshToken }),
       })
 
       if (!res.ok) {
@@ -55,7 +36,7 @@ export async function refreshAccessToken() {
         throw new Error('No access token returned')
       }
 
-      setToken(data.accessToken, data.refreshToken)
+      setToken(data.accessToken)
       return data.accessToken
     } catch (err) {
       setToken(null)

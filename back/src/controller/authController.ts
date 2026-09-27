@@ -7,7 +7,15 @@ import { env } from '../config/env.js'
 
 
 function generateAccessToken(userId: string, email: string): string {
-    return jwt.sign({ sub: userId, email }, env.jwtSecret, { expiresIn: env.jwtAccessExpires as jwt.SignOptions['expiresIn'] })
+    return jwt.sign(
+        { sub: userId, email },
+        env.jwtSecret,
+        {
+            expiresIn: env.jwtAccessExpires as jwt.SignOptions['expiresIn'],
+            issuer: 'rag-chat-ia',
+            audience: 'rag-chat-ia-api'
+        }
+    )
 }
 
 async function createRefreshToken(userId: string): Promise<string> {
@@ -56,7 +64,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const accessToken = generateAccessToken(user.id, user.email)
     const refreshToken = await createRefreshToken(user.id)
     res.cookie('refreshToken', refreshToken, COOKIE_OPTIONS)
-    res.json({ success: true, accessToken, refreshToken, user: { id: user.id, email: user.email } })
+    res.json({ success: true, accessToken, user: { id: user.id, email: user.email } })
 }
 
 export const refresh = async (req: Request, res: Response): Promise<void> => {
@@ -93,7 +101,7 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     const newRefreshToken = await createRefreshToken(stored.user.id)
 
     res.cookie('refreshToken', newRefreshToken, COOKIE_OPTIONS)
-    res.json({ success: true, accessToken: newAccessToken, refreshToken: newRefreshToken })
+    res.json({ success: true, accessToken: newAccessToken })
 
 }
 

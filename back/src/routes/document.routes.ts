@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import {
     uploadDocument,
     listDocuments,
@@ -8,6 +8,15 @@ import {
 } from '../controller/documentController.js'
 import { authenticate } from '../middleware/autheticate.js'
 import { upload, handleUploadError } from '../middleware/uploadMiddleware.js'
+import { z } from 'zod'
+
+const validateUuidParam = (req: Request, res: Response, next: NextFunction): void => {
+    if (!z.string().uuid().safeParse(req.params.id).success) {
+        res.status(400).json({ success: false, message: 'ID inválido' })
+        return
+    }
+    next()
+}
 
 const router = Router()
 
@@ -75,7 +84,7 @@ router.get('/', listDocuments)
  *       44:
  *         description: Documento no encontrado
  */
-router.get('/:id', getDocument)
+router.get('/:id', validateUuidParam, getDocument)
 
 /**
  * @openapi
@@ -96,7 +105,7 @@ router.get('/:id', getDocument)
  *       200:
  *         description: Documento eliminado correctamente
  */
-router.delete('/:id', deleteDocument)
+router.delete('/:id', validateUuidParam, deleteDocument)
 
 /**
  * @openapi
@@ -117,6 +126,6 @@ router.delete('/:id', deleteDocument)
  *       200:
  *         description: Proceso de re-chunking iniciado
  */
-router.post('/:id/reprocess', reprocessDocument)
+router.post('/:id/reprocess', validateUuidParam, reprocessDocument)
 
 export default router

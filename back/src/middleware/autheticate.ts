@@ -26,7 +26,10 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
     }
     const token = authHeader.split(' ')[1]
     try {
-        const payload = jwt.verify(token, env.jwtSecret) as AuthPayload
+        const payload = jwt.verify(token, env.jwtSecret, {
+            issuer: 'rag-chat-ia',
+            audience: 'rag-chat-ia-api'
+        }) as AuthPayload
         req.user = payload;
         next()
     } catch {

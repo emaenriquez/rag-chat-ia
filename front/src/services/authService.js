@@ -1,4 +1,4 @@
-import { api, getRefreshToken } from './api'
+import { api } from './api'
 
 export const authService = {
   login: (email, password) =>
@@ -6,5 +6,6 @@ export const authService = {
   register: (email, password) =>
     api.post('/auth/register', { email, password }, { auth: false }),
   me: () => api.get('/auth/me'),
-  logout: () => api.post('/auth/logout', { refreshToken: getRefreshToken() }),
+  // El refresh token viaja automáticamente via httpOnly cookie (credentials: 'include')
+  logout: () => api.post('/auth/logout', null),
 }
