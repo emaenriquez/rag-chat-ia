@@ -1,48 +1,39 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { authService } from '../services/authService'
-import { setToken, getToken } from '../services/api'
+import { setToken, getToken, refreshAccessToken } from '../services/api'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('user')
-      return saved ? JSON.parse(saved) : null
-    } catch {
-      return null
-    }
-  })
+  const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Recuperar sesión al cargar o recargar la página
   useEffect(() => {
-    const token = getToken()
-    if (!token) {
-      setUser(null)
-      setLoading(false)
-      return
-    }
+    localStorage.removeItem('user')
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('userId')
 
-    authService
-      .me()
-      .then((data) => {
+    const restoreSession = async () => {
+      try {
+        if (!getToken()) await refreshAccessToken()
+        const data = await authService.me()
         setUser(data.user)
-        localStorage.setItem('user', JSON.stringify(data.user))
-      })
-      .catch(() => {
-        // Solo si el token es inválido/expirado y el refresh falló se limpia la sesión
+      } catch {
         setUser(null)
         setToken(null)
-      })
-      .finally(() => setLoading(false))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    restoreSession()
   }, [])
 
   const login = useCallback(async (email, password) => {
     const data = await authService.login(email, password)
     setToken(data.accessToken)
     setUser(data.user)
-    localStorage.setItem('user', JSON.stringify(data.user))
     return data
   }, [])
 
@@ -59,6 +50,9 @@ export function AuthProvider({ children }) {
     setToken(null)
     setUser(null)
     localStorage.removeItem('user')
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('userId')
   }, [])
 
   return (

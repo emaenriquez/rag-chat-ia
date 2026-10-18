@@ -2,9 +2,11 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 import { v4 as uuidv4 } from 'uuid';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database.js';
 import { geminiService } from './gemini.service.js';
 import { r2Service } from './r2.service.js';
+import { buildLexicalQuery } from './query.service.js';
 
 // Simple text splitter with overlap
 function splitTextIntoChunks(text: string, chunkSize = 1000, overlap = 200): string[] {
@@ -123,57 +125,60 @@ export const ragService = {
      */
     async searchSimilarChunks(
         queryEmbedding: number[],
-        limit = 5,
+        limit = 10,
         documentIds?: string[],
-        userId?: string
+        userId?: string,
+        searchText = ''
     ): Promise<any[]> {
         const embeddingString = `[${queryEmbedding.join(',')}]`;
+        const scope = userId && documentIds?.length
+            ? Prisma.sql`d.user_id = ${userId} AND dc.document_id = ANY(${documentIds}::text[])`
+            : userId
+                ? Prisma.sql`d.user_id = ${userId}`
+                : documentIds?.length
+                    ? Prisma.sql`dc.document_id = ANY(${documentIds}::text[])`
+                    : Prisma.sql`TRUE`;
+        const joinDocuments = Prisma.sql`INNER JOIN documents d ON dc.document_id = d.id`;
 
-        if (documentIds && documentIds.length > 0) {
-            if (userId) {
-                return await prisma.$queryRaw<any[]>`
-                    SELECT dc.id, dc.document_id, dc.content, 
-                           1 - (dc.embedding <=> ${embeddingString}::vector) as similarity
-                    FROM document_chunks dc
-                    INNER JOIN documents d ON dc.document_id = d.id
-                    WHERE d.user_id = ${userId}
-                      AND dc.document_id = ANY(${documentIds}::text[])
-                    ORDER BY dc.embedding <=> ${embeddingString}::vector
-                    LIMIT ${limit}
-                `;
-            } else {
-                return await prisma.$queryRaw<any[]>`
-                    SELECT dc.id, dc.document_id, dc.content, 
-                           1 - (dc.embedding <=> ${embeddingString}::vector) as similarity
-                    FROM document_chunks dc
-                    WHERE dc.document_id = ANY(${documentIds}::text[])
-                    ORDER BY dc.embedding <=> ${embeddingString}::vector
-                    LIMIT ${limit}
-                `;
-            }
-        }
-
-        if (userId) {
-            return await prisma.$queryRaw<any[]>`
-                SELECT dc.id, dc.document_id, dc.content, 
-                       1 - (dc.embedding <=> ${embeddingString}::vector) as similarity
-                FROM document_chunks dc
-                INNER JOIN documents d ON dc.document_id = d.id
-                WHERE d.user_id = ${userId}
-                ORDER BY dc.embedding <=> ${embeddingString}::vector
-                LIMIT ${limit}
-            `;
-        }
-
-        // Fallback if no userId or documentIds (backward-compatible)
-        const results = await prisma.$queryRaw<any[]>`
-            SELECT id, document_id, content, 
-                   1 - (embedding <=> ${embeddingString}::vector) as similarity
-            FROM document_chunks
-            ORDER BY embedding <=> ${embeddingString}::vector
+        const semanticResults = await prisma.$queryRaw<any[]>`
+            SELECT dc.id, dc.document_id, dc.chunk_index, dc.content, d.original_name as document_name,
+                   1 - (dc.embedding <=> ${embeddingString}::vector) as similarity
+            FROM document_chunks dc
+            ${joinDocuments}
+            WHERE ${scope}
+            ORDER BY dc.embedding <=> ${embeddingString}::vector
             LIMIT ${limit}
         `;
 
-        return results;
+        const lexicalQueries = buildLexicalQuery(searchText);
+        if (lexicalQueries.length === 0) return semanticResults;
+
+        const patterns = lexicalQueries.map(query => `%${query}%`);
+        const conditions = Prisma.join(
+            patterns.map(pattern => Prisma.sql`dc.content ILIKE ${pattern}`),
+            ' OR '
+        );
+        const phrasePattern = `%${lexicalQueries[0]}%`;
+        const lexicalResults = await prisma.$queryRaw<any[]>`
+            SELECT dc.id, dc.document_id, dc.chunk_index, dc.content, d.original_name as document_name,
+                   CASE WHEN dc.content ILIKE ${phrasePattern} THEN 1.0 ELSE 0.85 END as similarity
+            FROM document_chunks dc
+            ${joinDocuments}
+            WHERE ${scope} AND (${conditions})
+            ORDER BY similarity DESC, dc.chunk_index ASC
+            LIMIT ${limit}
+        `;
+
+        const merged = new Map<string, any>();
+        for (const result of [...semanticResults, ...lexicalResults]) {
+            const current = merged.get(result.id);
+            if (!current || Number(result.similarity) > Number(current.similarity)) {
+                merged.set(result.id, result);
+            }
+        }
+
+        return [...merged.values()]
+            .sort((a, b) => Number(b.similarity) - Number(a.similarity))
+            .slice(0, limit);
     }
 };

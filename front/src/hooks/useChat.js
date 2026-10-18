@@ -67,15 +67,5 @@ export function useChat(chatId) {
     [chatId],
   )
 
-  const updateSources = useCallback(
-    async (documentIds) => {
-      if (!chatId) return
-      const data = await chatService.updateSources(chatId, documentIds)
-      setChat(data.chat)
-      return data.chat
-    },
-    [chatId],
-  )
-
-  return { chat, messages, sources, loading, sending, sendMessage, updateSources }
+  return { chat, messages, sources, loading, sending, sendMessage }
 }

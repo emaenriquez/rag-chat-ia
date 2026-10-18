@@ -136,6 +136,7 @@ export function NewChatModal({ open, onConfirm, onCancel }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    if (selectedIds.length === 0) return
     onConfirm({
       title: title.trim() || undefined,
       documentIds: selectedIds,
@@ -274,10 +275,12 @@ export function NewChatModal({ open, onConfirm, onCancel }) {
               ) : filteredDocs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
                   <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    {search ? 'Sin resultados para este filtro' : 'No hay documentos disponibles'}
+                    {search ? 'Sin resultados para este filtro' : 'No tienes fuentes todavía'}
                   </p>
                   <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1 max-w-xs">
-                    Sube documentos PDF o texto para comenzar a chatear con ellos.
+                    {search
+                      ? 'Prueba con otro nombre de archivo.'
+                      : 'Importa un PDF, TXT o Markdown para comenzar.'}
                   </p>
                 </div>
               ) : (
@@ -348,7 +351,7 @@ export function NewChatModal({ open, onConfirm, onCancel }) {
 
             {selectedIds.length === 0 && documents.length > 0 && (
               <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-                ℹ️ Si no seleccionas archivos específicos, el chat consultará todos tus documentos procesados.
+                Selecciona al menos un archivo para iniciar el chat.
               </p>
             )}
           </div>
@@ -364,7 +367,8 @@ export function NewChatModal({ open, onConfirm, onCancel }) {
             </button>
             <button
               type="submit"
-              className="flex items-center gap-1.5 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 px-4 py-2 text-xs font-semibold shadow-xs hover:opacity-90 active:scale-98 transition-all"
+              disabled={selectedIds.length === 0}
+              className="flex items-center gap-1.5 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 px-4 py-2 text-xs font-semibold shadow-xs hover:opacity-90 active:scale-98 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span>
                 {selectedIds.length > 0

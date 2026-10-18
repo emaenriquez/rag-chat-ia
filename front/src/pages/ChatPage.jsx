@@ -8,7 +8,6 @@ import { Sidebar } from '../components/Layout/Sidebar'
 import { MessageBubble } from '../components/Chat/MessageBubble'
 import { MessageInput } from '../components/Chat/MessageInput'
 import { NewChatModal } from '../components/Chat/NewChatModal'
-import { ManageSourcesModal } from '../components/Chat/ManageSourcesModal'
 import { Spinner } from '../components/ui/Spinner'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 
@@ -18,17 +17,13 @@ export function ChatPage() {
   const { user } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { chats, loading: chatsLoading, createChat, deleteChat } = useChats()
-  const { chat, messages, sources, loading: chatLoading, sending, sendMessage, updateSources } = useChat(chatId)
+  const { chat, messages, sources, loading: chatLoading, sending, sendMessage } = useChat(chatId)
   const bottomRef = useRef(null)
 
   // Estados de modales y mobile
   const [showNewChat, setShowNewChat] = useState(false)
-  const [showManageSources, setShowManageSources] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-
-  // Texto del prompt central cuando no hay mensajes
-  const [heroPrompt, setHeroPrompt] = useState('')
 
   // Saludo dinámico según la hora
   const getGreeting = () => {
@@ -49,6 +44,7 @@ export function ChatPage() {
   const handleNewChat = () => setShowNewChat(true)
 
   const handleCreateChat = async ({ title, documentIds }) => {
+    if (!documentIds?.length) return
     setShowNewChat(false)
     const newChat = await createChat(title || undefined, documentIds)
     navigate(`/chats/${newChat.id}`)
@@ -69,47 +65,12 @@ export function ChatPage() {
   }
 
   const handleSend = async (content) => {
-    if (!content.trim()) return
-
-    if (!chatId) {
-      // Si no hay chat activo, crear uno automáticamente y enviar el mensaje
-      const newChat = await createChat(content.slice(0, 30) || 'Nuevo Chat')
-      navigate(`/chats/${newChat.id}`)
-      // Esperar brevemente a que el hook monte el nuevo chat y enviar
-      setTimeout(async () => {
-        try {
-          await sendMessage(content)
-        } catch {}
-      }, 300)
-      return
-    }
-
+    if (!chatId || !content.trim()) return
     await sendMessage(content)
   }
 
   // Fuentes configuradas en el chat activo
   const configuredDocs = chat?.chatDocuments?.map((cd) => cd.document).filter(Boolean) || []
-  const configuredDocIds = configuredDocs.map((d) => d.id)
-
-  // // Sugerencias de prompt (estilo pills de Image 1 & 2)
-  // const SUGGESTIONS = [
-  //   { label: 'Resumir documento', icon: '📄', prompt: 'Genera un resumen ejecutivo destacando los puntos clave de los documentos.' },
-  //   { label: 'Búsqueda profunda', icon: '🔍', prompt: '¿Cuáles son los principales hallazgos, fechas y datos relevantes en los archivos?' },
-  //   { label: 'Extraer datos clave', icon: '📊', prompt: 'Extrae una lista de datos numéricos, métricas y conclusiones importantes.' },
-  //   { label: 'Redactar reporte', icon: '✍️', prompt: 'Redacta un informe estructurado basado en la información disponible.' },
-  // ]
-
-  const handleHeroSubmit = async (e) => {
-    e?.preventDefault()
-    const promptToSend = heroPrompt.trim()
-    if (!promptToSend) return
-    setHeroPrompt('')
-    await handleSend(promptToSend)
-  }
-
-  const handleApplySuggestion = (suggestionPrompt) => {
-    setHeroPrompt(suggestionPrompt)
-  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#fbfbfa] dark:bg-[#131315] text-zinc-900 dark:text-zinc-100 font-sans transition-colors duration-200">
@@ -160,12 +121,6 @@ export function ChatPage() {
                   </div>
                 </div>
 
-                {/* <button
-                  onClick={() => setShowManageSources(true)}
-                  className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-zinc-200 dark:border-zinc-700/80 bg-zinc-50 dark:bg-zinc-800/60 px-2 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  Editar fuentes
-                </button> */}
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -191,70 +146,38 @@ export function ChatPage() {
         </header>
 
         {/* CONTENIDO PRINCIPAL */}
-        {!chatId || (!chatLoading && messages.length === 0) ? (
-          /* ESTADO VACÍO / HERO (COPIA EXACTA DEL MOCKUP IMÁGENES 1 Y 2) */
+        {!chatId ? (
+          /* Estado inicial: las fuentes se eligen antes de crear el chat. */
           <div className="flex-1 overflow-y-auto px-4 py-8 md:py-16 flex flex-col items-center justify-center">
-            <div className="w-full max-w-2xl mx-auto flex flex-col items-center animate-fade-in">
-              {/* Saludo Editorial en Serif (Good Morning, Mithila) */}
-              <h1 className="text-3xl md:text-5xl font-serif text-zinc-900 dark:text-zinc-100 tracking-tight text-center mb-8 font-normal">
+            <div className="w-full max-w-xl mx-auto flex flex-col items-center text-center animate-fade-in">
+              <h1 className="text-3xl md:text-5xl font-serif text-zinc-900 dark:text-zinc-100 tracking-tight font-normal">
                 {getGreeting()}
               </h1>
 
-              {/* Caja de Prompt Flotante Central (Double-Bezel Architecture) */}
-              <div className="w-full">
-                <form
-                  onSubmit={handleHeroSubmit}
-                  className="p-1 rounded-[1.75rem] bg-zinc-200/50 dark:bg-zinc-800/40 ring-1 ring-zinc-300/40 dark:ring-white/10 transition-all focus-within:ring-zinc-400 dark:focus-within:ring-zinc-600"
+              <div className="mt-8 w-full rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-[#18181b]/80 p-6 md:p-8 shadow-sm">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200">
+                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H17a3 3 0 0 1 3 3v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-12Z" />
+                    <path d="M8 7h8M8 11h8M8 15h5" />
+                  </svg>
+                </div>
+                <h2 className="mt-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                  Inicia un nuevo chat
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                  Selecciona o importa fuentes para comenzar a chatear.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleNewChat}
+                  className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98] dark:bg-zinc-100 dark:text-zinc-900"
                 >
-                  <div className="rounded-[1.5rem] bg-white dark:bg-[#1f1f23] border border-zinc-200/70 dark:border-white/5 p-4 shadow-xl prompt-card-shadow">
-                    <textarea
-                      value={heroPrompt}
-                      onChange={(e) => setHeroPrompt(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          handleHeroSubmit(e)
-                        }
-                      }}
-                      placeholder="¿En qué puedo ayudarte hoy?"
-                      rows={2}
-                      className="w-full resize-none bg-transparent px-1 py-1 text-sm md:text-base text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none leading-relaxed"
-                    />
-
-                    {/* Barra de controles interior */}
-                    <div className="flex items-center justify-between pt-3 mt-1 border-t border-zinc-100 dark:border-zinc-800/60">
-                      {/* Botón + para agregar fuentes o crear chat */}
-                      <button
-                        type="button"
-                        onClick={handleNewChat}
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                        title="Seleccionar fuentes para la consulta"
-                      >
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <line x1="12" y1="5" x2="12" y2="19" />
-                          <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                      </button>
-
-                      {/* Selector de modo, micrófono y botón circular de enviar */}
-                      <div className="flex items-center gap-2">
-
-
-                        {/* Botón Enviar Circular */}
-                        <button
-                          type="submit"
-                          disabled={!heroPrompt.trim()}
-                          className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:scale-100"
-                        >
-                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <line x1="12" y1="19" x2="12" y2="5" />
-                            <polyline points="5 12 12 5 19 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </form>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Iniciar nuevo chat
+                </button>
               </div>
             </div>
           </div>
@@ -297,7 +220,6 @@ export function ChatPage() {
                 <MessageInput
                   onSend={handleSend}
                   disabled={sending}
-                  onOpenSources={() => setShowManageSources(true)}
                 />
               </div>
             </div>
@@ -310,13 +232,6 @@ export function ChatPage() {
         open={showNewChat}
         onConfirm={handleCreateChat}
         onCancel={() => setShowNewChat(false)}
-      />
-
-      <ManageSourcesModal
-        open={showManageSources}
-        currentDocIds={configuredDocIds}
-        onSave={updateSources}
-        onCancel={() => setShowManageSources(false)}
       />
 
       <ConfirmModal

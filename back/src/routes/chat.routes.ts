@@ -4,13 +4,12 @@ import {
     listChats,
     getChat,
     deleteChat,
-    sendMessage,
-    updateChatSources
+    sendMessage
 } from '../controller/chatController.js'
 import { authenticate } from '../middleware/autheticate.js'
 import { validate } from '../middleware/validate.js'
 import { chatLimiter } from '../middleware/rateLimit.js'
-import { CreateChatSchema, SendMessageSchema, UpdateChatSourcesSchema } from '../models/chat.schema.js'
+import { CreateChatSchema, SendMessageSchema } from '../models/chat.schema.js'
 import { z } from 'zod'
 
 const validateUuidParam = (req: Request, res: Response, next: NextFunction): void => {
@@ -88,40 +87,6 @@ router.get('/', listChats)
  *         description: Chat encontrado
  */
 router.get('/:id', validateUuidParam, getChat)
-
-/**
- * @openapi
- * /api/v1/chats/{id}/sources:
- *   put:
- *     summary: Actualizar los documentos vinculados a una conversación
- *     tags: [Chats]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [documentIds]
- *             properties:
- *               documentIds:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: uuid
- *     responses:
- *       200:
- *         description: Fuentes actualizadas
- */
-router.put('/:id/sources', validateUuidParam, validate(UpdateChatSourcesSchema), updateChatSources)
 
 /**
  * @openapi

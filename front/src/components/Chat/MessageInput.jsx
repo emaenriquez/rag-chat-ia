@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 
-export function MessageInput({ onSend, disabled, placeholder = 'Escribe tu pregunta o consulta tus documentos...', onOpenSources }) {
+export function MessageInput({ onSend, disabled, placeholder = 'Escribe tu pregunta o consulta tus documentos...' }) {
   const [text, setText] = useState('')
   const textareaRef = useRef(null)
 
@@ -37,23 +37,7 @@ export function MessageInput({ onSend, disabled, placeholder = 'Escribe tu pregu
           />
 
           <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800/60">
-            {/* Lado izquierdo: Botón + para fuentes */}
-            <div className="flex items-center gap-1.5">
-              {onOpenSources && (
-                <button
-                  type="button"
-                  onClick={onOpenSources}
-                  className="flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
-                  title="Gestionar fuentes documentales"
-                >
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  <span className="hidden sm:inline">Fuentes</span>
-                </button>
-              )}
-            </div>
+            <div />
 
             {/* Lado derecho: Selector y botón enviar */}
             <div className="flex items-center gap-2">

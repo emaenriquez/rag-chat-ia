@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { prisma } from '../config/database.js'
+import { buildContextualQuery, formatContextWithSources } from '../services/query.service.js'
 
 // POST /api/v1/chats
 export const createChat = async (req: Request, res: Response): Promise<void> => {
@@ -127,84 +128,6 @@ export const getChat = async (req: Request<{ id: string }>, res: Response): Prom
     res.json({ success: true, chat })
 }
 
-// PUT /api/v1/chats/:id/sources
-// Actualizar las fuentes (documentos) asignadas a un chat
-export const updateChatSources = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
-    const { id } = req.params
-    const userId = req.user!.sub
-    const { documentIds } = req.body
-
-    if (!Array.isArray(documentIds)) {
-        res.status(400).json({ success: false, message: 'documentIds debe ser un array de identificadores' })
-        return
-    }
-
-    // 1. Verificar que el chat existe y pertenece al usuario
-    const chat = await prisma.chat.findFirst({
-        where: { id, userId }
-    })
-
-    if (!chat) {
-        res.status(404).json({ success: false, message: 'Chat no encontrado' })
-        return
-    }
-
-    // 2. Si hay documentos seleccionados, validar que pertenezcan al usuario y estén procesados
-    if (documentIds.length > 0) {
-        const validDocs = await prisma.document.findMany({
-            where: {
-                id: { in: documentIds },
-                userId,
-                status: 'processed'
-            },
-            select: { id: true }
-        })
-
-        if (validDocs.length !== documentIds.length) {
-            res.status(400).json({
-                success: false,
-                message: 'Uno o más documentos no son válidos o aún no terminaron de procesarse'
-            })
-            return
-        }
-    }
-
-    // 3. Reemplazar asociaciones existentes en una transacción
-    await prisma.$transaction([
-        prisma.chatDocument.deleteMany({
-            where: { chatId: id }
-        }),
-        ...(documentIds.length > 0 ? [
-            prisma.chatDocument.createMany({
-                data: documentIds.map((docId: string) => ({
-                    chatId: id,
-                    documentId: docId
-                }))
-            })
-        ] : [])
-    ])
-
-    const updatedChat = await prisma.chat.findUnique({
-        where: { id },
-        include: {
-            chatDocuments: {
-                include: {
-                    document: {
-                        select: {
-                            id: true,
-                            originalName: true,
-                            status: true,
-                            mimeType: true
-                        }
-                    }
-                }
-            }
-        }
-    })
-
-    res.json({ success: true, chat: updatedChat })
-}
-
 // DELETE /api/v1/chats/:id
 export const deleteChat = async (req: Request<{ id: string }>, res: Response): Promise<void> => {
     const { id } = req.params
@@ -236,7 +159,12 @@ export const sendMessage = async (req: Request<{ id: string }>, res: Response): 
     const chat = await prisma.chat.findFirst({
         where: { id, userId },
         include: {
-            chatDocuments: true
+            chatDocuments: true,
+            messages: {
+                orderBy: { createdAt: 'desc' },
+                take: 6,
+                select: { role: true, content: true }
+            }
         }
     })
 
@@ -262,16 +190,22 @@ export const sendMessage = async (req: Request<{ id: string }>, res: Response): 
     let similarChunks = []
 
     const selectedDocIds = chat.chatDocuments.map(cd => cd.documentId)
+    const history = [...chat.messages].reverse()
+    const contextualQuery = buildContextualQuery(content, history)
+    const historyText = history
+        .map(message => `${message.role === 'user' ? 'Usuario' : 'Asistente'}: ${message.content}`)
+        .join('\n')
 
     try {
-        const queryEmbedding = await geminiService.getEmbedding(content)
+        const queryEmbedding = await geminiService.getEmbedding(contextualQuery)
 
         // 4. Buscar fragmentos relevantes filtrando por los documentos seleccionados (si los hay) y el usuario
         similarChunks = await ragService.searchSimilarChunks(
             queryEmbedding,
-            5,
+            10,
             selectedDocIds.length > 0 ? selectedDocIds : undefined,
-            userId
+            userId,
+            content
         )
 
         if (similarChunks.length === 0) {
@@ -281,10 +215,10 @@ export const sendMessage = async (req: Request<{ id: string }>, res: Response): 
                 : 'Lo siento, esa información no se encuentra en los archivos cargados.'
         } else {
             // Construir el contexto uniendo los fragmentos
-            const contextText = similarChunks.map(c => c.content).join('\n\n---\n\n')
+            const contextText = formatContextWithSources(similarChunks)
 
             // 5. Generar la respuesta usando Gemini
-            assistantContent = await geminiService.generateChatResponse(content, contextText)
+            assistantContent = await geminiService.generateChatResponse(content, contextText, historyText)
         }
 
     } catch (error: any) {
