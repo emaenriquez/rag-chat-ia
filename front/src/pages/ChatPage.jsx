@@ -191,15 +191,29 @@ export function ChatPage() {
                 </div>
               ) : (
                 <div className="mx-auto max-w-3xl flex flex-col space-y-1">
-                  {messages.map((msg) => (
-                    <MessageBubble
-                      key={msg.id}
-                      role={msg.role}
-                      content={msg.content}
-                      createdAt={msg.createdAt}
-                      sources={msg.role === 'assistant' ? sources : []}
-                    />
-                  ))}
+                  {messages.length === 0 && !sending ? (
+                    /* Estado vacío: bienvenida dentro del chat */
+                    <div className="flex flex-col items-center justify-center text-center py-12 animate-fade-in">
+                      <h1 className="text-2xl md:text-4xl font-serif text-zinc-900 dark:text-zinc-100 tracking-tight font-normal">
+                        {getGreeting()}
+                      </h1>
+                      <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400 max-w-md leading-relaxed">
+                        Escribe tu pregunta o consulta tus documentos para comenzar.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {messages.map((msg) => (
+                        <MessageBubble
+                          key={msg.id}
+                          role={msg.role}
+                          content={msg.content}
+                          createdAt={msg.createdAt}
+                          sources={msg.role === 'assistant' ? sources : []}
+                        />
+                      ))}
+                    </>
+                  )}
 
                   {/* Indicador de pensando / generando */}
                   {sending && (
